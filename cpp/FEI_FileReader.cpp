@@ -51,8 +51,6 @@ void FEI_FileReader_i::initialize() throw (CF::LifeCycle::InitializeError, CORBA
 
 void FEI_FileReader_i::stop() throw (CF::Resource::StopError, CORBA::SystemException)
 {
-    this->fileReader.stop();
-
     FEI_FileReader_base::stop();
 }
 
@@ -218,7 +216,7 @@ td::cout << *i << std::endl;
 ************************************************************************************************/
 int FEI_FileReader_i::serviceFunction()
 {
-    if (not this->isPlaying) {
+    /*if (not this->isPlaying) {
         return NOOP;
     }
 
@@ -235,38 +233,45 @@ int FEI_FileReader_i::serviceFunction()
 
     LOG_INFO(FEI_FileReader_i, "Got packet of size " << packet->dataSize << " bytes");
 
-    this->fileReader.replacePacket(packet);
+    this->fileReader.replacePacket(packet);*/
 
     return NORMAL;
 }
 
 void FEI_FileReader_i::AdvancedPropertiesChanged(const AdvancedProperties_struct *oldValue, const AdvancedProperties_struct *newValue)
 {
-    if (oldValue->PacketSize != newValue->PacketSize) {
+    /*if (oldValue->PacketSize != newValue->PacketSize) {
         this->fileReader.setPacketSize(newValue->PacketSize);
     }
 
     if (oldValue->QueueSize != newValue->QueueSize) {
         this->fileReader.setQueueSize(newValue->QueueSize);
-    }
+    }*/
 }
 
 void FEI_FileReader_i::construct()
 {
     addPropertyChangeListener("AdvancedProperties", this, &FEI_FileReader_i::AdvancedPropertiesChanged);
-    addPropertyChangeListener("filepath", this, &FEI_FileReader_i::filepathChanged);
+    addPropertyChangeListener("filePath", this, &FEI_FileReader_i::filePathChanged);
     addPropertyChangeListener("playbackState", this, &FEI_FileReader_i::playbackStateChanged);
+    addPropertyChangeListener("update_available_files", this, &FEI_FileReader_i::updateAvailableFilesChanged);
 
-    this->fileReader.setPacketSize(this->AdvancedProperties.PacketSize);
-    this->fileReader.setQueueSize(this->AdvancedProperties.QueueSize);
+    //this->fileReader.setPacketSize(this->AdvancedProperties.PacketSize);
+    //this->fileReader.setQueueSize(this->AdvancedProperties.QueueSize);
     this->isPlaying = false;
 }
 
-void FEI_FileReader_i::filepathChanged(const std::string *oldValue, const std::string *newValue)
+void FEI_FileReader_i::filePathChanged(const std::string *oldValue, const std::string *newValue)
 {
-    if (not this->fileReader.setFilepath(*newValue)) {
-        LOG_WARN(FEI_FileReader_i, "Invalid file path, reverting");
+    if (not boost::filesystem::exists(*newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Invalid file path");
+        this->filePath = *oldValue;
+        return;
     }
+
+    updateAvailableFiles();
+
+    LOG_INFO(FEI_FileReader_i, "Found " << this->fileReaders.size() << " files to read");
 }
 
 void FEI_FileReader_i::playbackStateChanged(const std::string *oldValue, const std::string *newValue)
@@ -285,14 +290,14 @@ void FEI_FileReader_i::setPlaybackState(const std::string &value, const std::str
 
     if (oldValue == "PLAY") {
         if (value == "STOP") {
-            this->fileReader.stop();
+            //this->fileReader.stop();
             this->isPlaying = false;
         } else if (value == "PAUSE") {
             this->isPlaying = false;
         }
     } else if (oldValue == "STOP") {
         if (value == "PLAY") {
-            this->fileReader.start();
+            //this->fileReader.start();
             this->isPlaying = true;
         } else if (value == "PAUSE") {
             this->isPlaying = false;
@@ -300,16 +305,72 @@ void FEI_FileReader_i::setPlaybackState(const std::string &value, const std::str
         }
     } else if (oldValue == "PAUSE") {
         if (value == "PLAY") {
-            this->fileReader.start();
+            //this->fileReader.start();
             this->isPlaying = true;
         } else if (value == "STOP") {
-            this->fileReader.stop();
+            //this->fileReader.stop();
             this->isPlaying = false;
         }
     }
 
     LOG_INFO(FEI_FileReader_i, "Setting playback state to " << finalValue);
     this->playbackState = finalValue;
+}
+
+void FEI_FileReader_i::setNumChannels(size_t numChannels)
+{
+    FEI_FileReader_base::setNumChannels(numChannels);
+
+    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
+        delete this->fileReaders[id];
+    }
+
+    this->fileReaders.clear();
+    this->fileReaders.resize(numChannels);
+
+    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
+        this->fileReaders[id] = new FileReader();
+    }
+}
+
+void FEI_FileReader_i::updateAvailableFiles()
+{
+    this->available_files.clear();
+
+    if (boost::filesystem::is_regular_file(this->filePath)) {
+        File_struct file;
+        file.path = this->filePath;
+        file.size = boost::filesystem::file_size(this->filePath);
+
+        this->available_files.push_back(file);
+    } else if (boost::filesystem::is_directory(this->filePath)) {
+        for (boost::filesystem::directory_iterator i(this->filePath); i != boost::filesystem::directory_iterator(); i++) {
+            boost::filesystem::directory_entry e(*i);
+
+            if (boost::filesystem::is_regular_file(e)) {
+                File_struct file;
+                file.path = e.path().string();
+                file.size = boost::filesystem::file_size(file.path);
+
+                this->available_files.push_back(file);
+            }
+        }
+    } else {
+        LOG_WARN(FEI_FileReader_i, "Unsupported file type (symbolic link, empty file/directory, etc.");
+    }
+
+    Update the frontend tuner status
+
+    setNumChannels(this->available_files.size());
+}
+
+void FEI_FileReader_i::updateAvailableFilesChanged(const bool *oldValue, const bool *newValue)
+{
+    if (this->update_available_files) {
+        updateAvailableFiles();
+    }
+
+    this->update_available_files = false;
 }
 
 /*************************************************************

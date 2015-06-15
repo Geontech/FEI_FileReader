@@ -118,8 +118,8 @@ False: Does not need control and can just attach to any currently tasked device 
     </struct>
     <configurationkind kindtype="configure"/>
   </structsequence>
-  <simple id="filepath" mode="readwrite" type="string">
-    <description>The path to the file or directory to be read.</description>
+  <simple id="filePath" mode="readwrite" type="string">
+    <description>The path to the file or directory to be read.  Each file will be treated as a separate tuner to allocate.</description>
     <value></value>
     <kind kindtype="configure"/>
     <action type="external"/>
@@ -146,6 +146,27 @@ False: Does not need control and can just attach to any currently tasked device 
       <enumeration label="Stop" value="STOP"/>
       <enumeration label="Pause" value="PAUSE"/>
     </enumerations>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <structsequence id="available_files" mode="readonly" name="available_files">
+    <description>Lists all files found at the path specified in the filePath property.</description>
+    <struct id="available_files::File" name="File">
+      <description>A description of an available file.</description>
+      <simple id="available_files::path" name="path" type="string">
+        <description>The path of the file.</description>
+        <value></value>
+      </simple>
+      <simple id="available_files::size" name="size" type="ulonglong">
+        <description>The size of the file.</description>
+        <value>0</value>
+      </simple>
+    </struct>
+    <configurationkind kindtype="configure"/>
+  </structsequence>
+  <simple id="update_available_files" mode="readwrite" name="update_available_files" type="boolean">
+    <description>When set to true, the available_files property will be updated with all available files found at the path specified by the filePath property.</description>
+    <value>False</value>
     <kind kindtype="configure"/>
     <action type="external"/>
   </simple>

@@ -205,4 +205,66 @@ inline bool operator!= (const frontend_tuner_status_struct_struct& s1, const fro
     return !(s1==s2);
 };
 
+struct File_struct {
+    File_struct ()
+    {
+        path = "";
+        size = 0LL;
+    };
+
+    static std::string getId() {
+        return std::string("available_files::File");
+    };
+
+    std::string path;
+    CORBA::ULongLong size;
+};
+
+inline bool operator>>= (const CORBA::Any& a, File_struct& s) {
+    CF::Properties* temp;
+    if (!(a >>= temp)) return false;
+    CF::Properties& props = *temp;
+    for (unsigned int idx = 0; idx < props.length(); idx++) {
+        if (!strcmp("available_files::path", props[idx].id)) {
+            if (!(props[idx].value >>= s.path)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
+        }
+        else if (!strcmp("available_files::size", props[idx].id)) {
+            if (!(props[idx].value >>= s.size)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+};
+
+inline void operator<<= (CORBA::Any& a, const File_struct& s) {
+    CF::Properties props;
+    props.length(2);
+    props[0].id = CORBA::string_dup("available_files::path");
+    props[0].value <<= s.path;
+    props[1].id = CORBA::string_dup("available_files::size");
+    props[1].value <<= s.size;
+    a <<= props;
+};
+
+inline bool operator== (const File_struct& s1, const File_struct& s2) {
+    if (s1.path!=s2.path)
+        return false;
+    if (s1.size!=s2.size)
+        return false;
+    return true;
+};
+
+inline bool operator!= (const File_struct& s1, const File_struct& s2) {
+    return !(s1==s2);
+};
+
 #endif // STRUCTPROPS_H

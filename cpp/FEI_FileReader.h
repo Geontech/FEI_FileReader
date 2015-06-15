@@ -57,13 +57,17 @@ class FEI_FileReader_i : public FEI_FileReader_base
         // Miscellaneous helper methods
         void AdvancedPropertiesChanged(const AdvancedProperties_struct *oldValue, const AdvancedProperties_struct *newValue);
         void construct();
-        void filepathChanged(const std::string *oldValue, const std::string *newValue);
+        void filePathChanged(const std::string *oldValue, const std::string *newValue);
         void playbackStateChanged(const std::string *oldValue, const std::string *newValue);
         void setPlaybackState(const std::string &value);
         void setPlaybackState(const std::string &value, const std::string &oldValue);
 
+        void setNumChannels(size_t numChannels);
+        void updateAvailableFiles();
+        void updateAvailableFilesChanged(const bool *oldValue, const bool *newValue);
+
     private:
-        FileReader fileReader;
+        std::vector<FileReader *> fileReaders;
         bool isPlaying;
 };
 

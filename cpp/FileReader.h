@@ -15,7 +15,7 @@
 struct FilePacket {
     char *data;
     size_t dataSize;
-    std::string filename;
+    std::string filePath;
     bool firstPacket;
 };
 
@@ -29,8 +29,6 @@ class FileReader
     public:
         // Public functions for controlling the
         // reader
-        void pause();
-        void restart();
         void start();
         void stop();
 
@@ -45,8 +43,8 @@ class FileReader
 
     public:
         // Interface functions
-        const std::string& getFilepath() const;
-        bool setFilepath(const std::string &newFilepath);
+        const std::string& getFilePath() const;
+        bool setFilePath(const std::string &newFilePath);
 
         const size_t& getPacketSize() const;
         void setPacketSize(const size_t &newPacketSize);
@@ -71,7 +69,7 @@ class FileReader
         std::deque<FilePacket *> freeFilePackets;
         boost::condition_variable freePacketAvailable;
         boost::mutex freeQueueLock;
-        std::string filepath;
+        std::string filePath;
         bool isPlaying;
         size_t packetSize;
         size_t queueSize;

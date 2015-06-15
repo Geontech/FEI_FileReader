@@ -147,9 +147,9 @@ void FEI_FileReader_base::loadProperties()
 {
     device_kind = "FRONTEND::TUNER";
     device_model = "FILE";
-    addProperty(filepath,
+    addProperty(filePath,
                 "",
-                "filepath",
+                "filePath",
                 "",
                 "readwrite",
                 "",
@@ -160,6 +160,15 @@ void FEI_FileReader_base::loadProperties()
                 "STOP",
                 "playbackState",
                 "",
+                "readwrite",
+                "",
+                "external",
+                "configure");
+
+    addProperty(update_available_files,
+                false,
+                "update_available_files",
+                "update_available_files",
                 "readwrite",
                 "",
                 "external",
@@ -179,6 +188,14 @@ void FEI_FileReader_base::loadProperties()
     addProperty(connectionTable,
                 "connectionTable",
                 "",
+                "readonly",
+                "",
+                "external",
+                "configure");
+
+    addProperty(available_files,
+                "available_files",
+                "available_files",
                 "readonly",
                 "",
                 "external",

@@ -41,10 +41,12 @@ class FEI_FileReader_base : public frontend::FrontendTunerDevice<frontend_tuner_
         void connectionTableChanged(const std::vector<connection_descriptor_struct>* oldValue, const std::vector<connection_descriptor_struct>* newValue);
 
         // Member variables exposed as properties
-        std::string filepath;
+        std::string filePath;
         std::string playbackState;
+        bool update_available_files;
         AdvancedProperties_struct AdvancedProperties;
         std::vector<connection_descriptor_struct> connectionTable;
+        std::vector<File_struct> available_files;
 
         // Ports
         frontend::InRFInfoPort *RFInfo_in;

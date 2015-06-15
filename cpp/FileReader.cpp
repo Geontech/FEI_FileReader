@@ -12,6 +12,9 @@
 
 PREPARE_LOGGING(FileReader)
 
+/*
+ * Initialize the variables and fill the queues
+ */
 FileReader::FileReader() :
     isPlaying(false),
     packetSize(1000),
@@ -23,6 +26,9 @@ FileReader::FileReader() :
     initializeQueues();
 }
 
+/*
+ * Stop the thread and clear the queues
+ */
 FileReader::~FileReader()
 {
     LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
@@ -31,29 +37,22 @@ FileReader::~FileReader()
     clearQueues();
 }
 
-void FileReader::pause()
-{
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
-}
-
-void FileReader::restart()
-{
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
-
-    stop();
-    initializeQueues();
-    start();
-}
-
+/*
+ * Reset the queues to an initial state and start the thread, if necessary
+ */
 void FileReader::start()
 {
     LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
 
     if (this->threadHandle == NULL) {
+        resetQueues();
         this->threadHandle = new boost::thread(&FileReader::fileReaderWorkFunction, this);
     }
 }
 
+/*
+ * Shutdown the thread, if necessary
+ */
 void FileReader::stop()
 {
     LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
@@ -68,11 +67,20 @@ void FileReader::stop()
     }
 }
 
+/*
+ * Indicate whether the thread is able to produce packets
+ */
 bool FileReader::isReady() const
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     return this->isPlaying;
 }
 
+/*
+ * Return a pointer to the next allocated packet, if one is available.  If not,
+ * wait for one or timeout
+ */
 FilePacket* const FileReader::getNextPacket()
 {
     LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
@@ -95,8 +103,15 @@ FilePacket* const FileReader::getNextPacket()
     return packet;
 }
 
+/*
+ * Replace a packet acquired through getNextPacket.  This is necessary to
+ * prevent memory leaks.  TODO: Think of a better way to do this.  Maybe a
+ * callback?
+ */
 void FileReader::replacePacket(FilePacket * const packet)
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     boost::mutex::scoped_lock lock(this->freeQueueLock);
 
     this->freeFilePackets.push_back(packet);
@@ -104,34 +119,62 @@ void FileReader::replacePacket(FilePacket * const packet)
     this->freePacketAvailable.notify_one();
 }
 
-const std::string& FileReader::getFilepath() const
+/*
+ * Return the current file path being used
+ */
+const std::string& FileReader::getFilePath() const
 {
-    return this->filepath;
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
+    return this->filePath;
 }
 
-bool FileReader::setFilepath(const std::string &newFilepath)
+/*
+ * If the new file path exists, set the current file path and restart the
+ * thread.  Returns a boolean to indicate success or failure
+ */
+bool FileReader::setFilePath(const std::string &newFilePath)
 {
-    if (not boost::filesystem::exists(newFilepath)) {
-        LOG_WARN(FileReader, "Invalid file path");
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
+    if (this->filePath == newFilePath) {
+        return true;
+    }
+
+    if (not boost::filesystem::exists(newFilePath)) {
+        LOG_WARN(FileReader, "Invalid file path: " << newFilePath);
         return false;
     }
 
-    this->filepath = newFilepath;
-
     if (this->threadHandle != NULL) {
-        restart();
+        stop();
+        this->filePath = newFilePath;
+        start();
+    } else {
+        this->filePath = newFilePath;
     }
 
     return true;
 }
 
+/*
+ * Get the current packet size being used
+ */
 const size_t& FileReader::getPacketSize() const
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     return this->packetSize;
 }
 
+/*
+ * Set the new packet size, stop the thread if necessary, always initialize the
+ * queues to reflect the new packet size, and start the thread if necessary
+ */
 void FileReader::setPacketSize(const size_t &newPacketSize)
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     if (this->packetSize == newPacketSize) {
         return;
     }
@@ -139,19 +182,32 @@ void FileReader::setPacketSize(const size_t &newPacketSize)
     this->packetSize = newPacketSize;
 
     if (this->threadHandle != NULL) {
-        restart();
+        stop();
+        initializeQueues();
+        start();
     } else {
         initializeQueues();
     }
 }
 
+/*
+ * Get the current queue size being used
+ */
 const size_t& FileReader::getQueueSize() const
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     return this->queueSize;
 }
 
+/*
+ * Set the new queue size, stop the thread if necessary, always initialize the
+ * queues to reflect the new queue size, and start the thread if necessary
+ */
 void FileReader::setQueueSize(const size_t &newQueueSize)
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     if (this->queueSize == newQueueSize) {
         return;
     }
@@ -159,154 +215,127 @@ void FileReader::setQueueSize(const size_t &newQueueSize)
     this->queueSize = newQueueSize;
 
     if (this->threadHandle != NULL) {
-        restart();
+        stop();
+        initializeQueues();
+        start();
     } else {
         initializeQueues();
     }
 }
 
+/*
+ * The read ahead function run by the thread to allow caching of the file data
+ * TODO: Break this up into functions
+ */
 void FileReader::fileReaderWorkFunction()
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
+    // Indicate that the file reader is ready to produce packets
     this->isPlaying = true;
 
-    std::vector<std::string> filesToRead;
+    LOG_DEBUG(FileReader, "Opening file: " << this->filePath);
+    std::ifstream in(this->filePath.c_str(), std::ios::in | std::ios::binary);
 
-    // If the filepath points to a directory, add all regular
-    // files beneath it to the list
-    if (boost::filesystem::is_regular_file(this->filepath)) {
-        filesToRead.push_back(this->filepath);
-    } else if (boost::filesystem::is_directory(this->filepath)) {
-        for (boost::filesystem::directory_iterator i(this->filepath); i != boost::filesystem::directory_iterator(); i++) {
-            boost::filesystem::directory_entry e(*i);
-
-            if (boost::filesystem::is_regular_file(e)) {
-                filesToRead.push_back(e.path().file_string());
-            }
-        }
-    } else {
-        LOG_WARN(FileReader, "Unrecognized file type");
+    // An error occurred in opening the file for reading
+    if (not in) {
+        LOG_WARN(FileReader, "Unable to open file: " << this->filePath);
+        return;
     }
 
-    // Iterate over all files and read them, placing the data
-    // into the packets that are free
-    for (std::vector<std::string>::iterator i = filesToRead.begin(); i != filesToRead.end(); i++) {
-        LOG_INFO(FileReader, "Opening file: " << *i);
-        std::ifstream in(i->c_str(), std::ios::in | std::ios::binary);
+    // Get the size of the file and prepare the firstPacket flag
+    size_t remainingBytes = boost::filesystem::file_size(this->filePath);
+    bool firstPacket = true;
 
-        // An error occurred in opening the file for reading,
-        // try the next one
-        if (not in) {
-            LOG_WARN(FileReader, "Unable to open file: " << *i);
-            continue;
-        }
+    LOG_DEBUG(FileReader, "File is of size: " << remainingBytes << " bytes");
 
-        // Get the size of the file and prepare the firstPacket
-        // flag
-        size_t remainingBytes = boost::filesystem::file_size(*i);
-        bool firstPacket = true;
+    do {
+        boost::mutex::scoped_lock freeLock(this->freeQueueLock);
 
-        LOG_INFO(FileReader, "File is of size: " << remainingBytes << " bytes");
+        // Check for a free packet
+        if (this->freeFilePackets.size() == 0) {
+            // Wait for a free packet signal
+            this->freePacketAvailable.wait(freeLock);
 
-        do {
-            boost::mutex::scoped_lock freeLock(this->freeQueueLock);
-
-            LOG_INFO(FileReader, "Got free lock");
-
-            // Check for a free packet
+            // If the signal has been received but no free packet is
+            // available, the thread has most likely been stopped.  If that
+            // isn't the case, this prevents errors at the cost of not
+            // finishing the file
             if (this->freeFilePackets.size() == 0) {
-                LOG_INFO(FileReader, "Waiting for free packet to be available");
-                this->freePacketAvailable.wait(freeLock);
-                LOG_INFO(FileReader, "Free packet available?");
-
-                if (this->freeFilePackets.size() == 0) {
-                    LOG_INFO(FileReader, "Nope");
-                    break;
-                }
-
-                LOG_INFO(FileReader, "Yup");
-            }
-
-            // If the thread is asked to stop, break out of the
-            // loop and clean up the file
-            try {
-                boost::this_thread::interruption_point();
-            } catch (boost::thread_interrupted &e) {
-                LOG_INFO(FileReader, "Main thread requested interruption");
                 break;
             }
+        }
 
-            // Get and remove the first packet form the queue
-            FilePacket *packet = this->freeFilePackets.front();
-
-            this->freeFilePackets.pop_front();
-
-            LOG_INFO(FileReader, "Got free packet");
-
-            freeLock.unlock();
-
-            // Set the firstPacket flag on this packet
-            packet->firstPacket = firstPacket;
-
-            if (firstPacket) {
-                firstPacket = false;
-            }
-
-            // Set the filename string to this file
-            packet->filename = *i;
-
-            LOG_INFO(FileReader, "Packet crafted for " << *i);
-
-            // Read either the rest of the data, or the size of
-            // a packet, whichever is smaller
-            size_t bytesToRead = std::min(remainingBytes, this->packetSize);
-            size_t bytesRead = 0;
-
-            do {
-                in.read(&packet->data[bytesRead], bytesToRead - bytesRead);
-
-                bytesRead += in.gcount();
-            } while (not in);
-
-            LOG_INFO(FileReader, "Read " << bytesRead << " bytes");
-
-            // Indicate the size of the data in the packet
-            packet->dataSize = bytesRead;
-
-            boost::mutex::scoped_lock allocatedLock(this->allocatedQueueLock);
-
-            LOG_INFO(FileReader, "Got allocated lock");
-
-            // Insert the packet at the end of the allocated
-            // queue
-            this->allocatedFilePackets.push_back(packet);
-
-            this->allocatedPacketAvailable.notify_one();
-
-            // Adjust the number of bytes remaining
-            remainingBytes -= bytesRead;
-        } while (remainingBytes > 0);
-
-        LOG_INFO(FileReader, "Closing file");
-
-        // Close the file
-        in.close();
-
-        // If the thread is asked to stop, break out of the
-        // loop and clean up the file
+        // If the thread is asked to stop, break out of the loop and clean
+        // up the file
         try {
             boost::this_thread::interruption_point();
         } catch (boost::thread_interrupted &e) {
-            LOG_INFO(FileReader, "Main thread requested interruption");
+            LOG_DEBUG(FileReader, "Main thread requested interruption from file loop");
             break;
         }
-    }
 
-    LOG_INFO(FileReader, "Exiting work function");
+        // Get and remove the first packet form the queue
+        FilePacket *packet = this->freeFilePackets.front();
+
+        this->freeFilePackets.pop_front();
+
+        freeLock.unlock();
+
+        // Set the firstPacket flag on this packet
+        packet->firstPacket = firstPacket;
+
+        if (firstPacket) {
+            firstPacket = false;
+        }
+
+        // Set the file path string to this file TODO: This may not be necessary after changing to one fileReader per file
+        packet->filePath = this->filePath;
+
+        // Read either the rest of the data, or the size of a packet,
+        // whichever is smaller
+        size_t bytesToRead = std::min(remainingBytes, this->packetSize);
+        size_t bytesRead = 0;
+
+        // Do this in a loop to cover partial reads
+        do {
+            in.read(&packet->data[bytesRead], bytesToRead - bytesRead);
+
+            bytesRead += in.gcount();
+        } while (not in || bytesRead < bytesToRead);
+
+        // Indicate the size of the data in the packet
+        packet->dataSize = bytesRead;
+
+        boost::mutex::scoped_lock allocatedLock(this->allocatedQueueLock);
+
+        // Insert the packet at the end of the allocated
+        // queue
+        this->allocatedFilePackets.push_back(packet);
+
+        this->allocatedPacketAvailable.notify_one();
+
+        // Adjust the number of bytes remaining
+        remainingBytes -= bytesRead;
+    } while (remainingBytes > 0);
+
+    LOG_DEBUG(FileReader, "Closing file: " << this->filePath);
+
+    // Close the file
+    in.close();
+
+    LOG_DEBUG(FileReader, "Exiting work function");
     this->isPlaying = false;
 }
 
+/*
+ * Given a queue of FilePacket pointers, delete the packet payload, delete the
+ * pointer, and then empty the queue of defunct pointers
+ */
 void FileReader::clearQueue(std::deque<FilePacket *> &queue)
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     for (std::deque<FilePacket *>::iterator i = queue.begin(); i != queue.end(); i++) {
         if ((*i)->data != NULL) {
             delete[] (*i)->data;
@@ -320,15 +349,26 @@ void FileReader::clearQueue(std::deque<FilePacket *> &queue)
     queue.clear();
 }
 
+/*
+ * A convenience function to clear both the allocated and free file packet
+ * queues
+ */
 void FileReader::clearQueues()
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     clearQueue(this->allocatedFilePackets);
     clearQueue(this->freeFilePackets);
 }
 
+/*
+ * Empty both queues if necessary, then fill the free queue with packets that
+ * have a valid payload array
+ */
 void FileReader::initializeQueues()
 {
-    LOG_INFO(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     // Clear out any existing packets before initializing
     if (this->allocatedFilePackets.size() != 0 || this->freeFilePackets.size() != 0) {
         clearQueues();
@@ -337,19 +377,22 @@ void FileReader::initializeQueues()
     FilePacket *packet = NULL;
 
     for (size_t i = 0; i < this->queueSize; ++i) {
-        LOG_INFO(FileReader, "New Packet");
         packet = new FilePacket;
 
         packet->data = new char[this->packetSize];
 
         this->freeFilePackets.push_back(packet);
     }
-
-    LOG_INFO(FileReader, "Done with initialize");
 }
 
+/*
+ * Take any packets that are in the allocated file packet queue and place them
+ * into the free queue to prevent the overhead associated with reallocation
+ */
 void FileReader::resetQueues()
 {
+    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+
     for (size_t i = this->allocatedFilePackets.size(); i > 0; --i) {
         this->freeFilePackets.push_back(this->allocatedFilePackets.front());
         this->allocatedFilePackets.pop_front();
