@@ -8,7 +8,6 @@
 *******************************************************************************************/
 
 #include <ossie/CorbaUtils.h>
-#include <CF/cf.h>
 #include <bulkio/bulkio.h>
 typedef bulkio::connection_descriptor_struct connection_descriptor_struct;
 
@@ -35,20 +34,10 @@ inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
     CF::Properties& props = *temp;
     for (unsigned int idx = 0; idx < props.length(); idx++) {
         if (!strcmp("AdvancedProperties::PacketSize", props[idx].id)) {
-            if (!(props[idx].value >>= s.PacketSize)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.PacketSize)) return false;
         }
         else if (!strcmp("AdvancedProperties::QueueSize", props[idx].id)) {
-            if (!(props[idx].value >>= s.QueueSize)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.QueueSize)) return false;
         }
     }
     return true;
@@ -84,6 +73,8 @@ struct frontend_tuner_status_struct_struct : public frontend::default_frontend_t
     static std::string getId() {
         return std::string("FRONTEND::tuner_status_struct");
     };
+
+    std::string stream_id;
 };
 
 inline bool operator>>= (const CORBA::Any& a, frontend_tuner_status_struct_struct& s) {
@@ -92,68 +83,31 @@ inline bool operator>>= (const CORBA::Any& a, frontend_tuner_status_struct_struc
     CF::Properties& props = *temp;
     for (unsigned int idx = 0; idx < props.length(); idx++) {
         if (!strcmp("FRONTEND::tuner_status::allocation_id_csv", props[idx].id)) {
-            if (!(props[idx].value >>= s.allocation_id_csv)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.allocation_id_csv)) return false;
         }
         else if (!strcmp("FRONTEND::tuner_status::bandwidth", props[idx].id)) {
-            if (!(props[idx].value >>= s.bandwidth)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.bandwidth)) return false;
         }
         else if (!strcmp("FRONTEND::tuner_status::center_frequency", props[idx].id)) {
-            if (!(props[idx].value >>= s.center_frequency)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.center_frequency)) return false;
         }
         else if (!strcmp("FRONTEND::tuner_status::enabled", props[idx].id)) {
-            if (!(props[idx].value >>= s.enabled)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.enabled)) return false;
         }
         else if (!strcmp("FRONTEND::tuner_status::group_id", props[idx].id)) {
-            if (!(props[idx].value >>= s.group_id)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.group_id)) return false;
         }
         else if (!strcmp("FRONTEND::tuner_status::rf_flow_id", props[idx].id)) {
-            if (!(props[idx].value >>= s.rf_flow_id)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.rf_flow_id)) return false;
         }
         else if (!strcmp("FRONTEND::tuner_status::sample_rate", props[idx].id)) {
-            if (!(props[idx].value >>= s.sample_rate)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.sample_rate)) return false;
         }
         else if (!strcmp("FRONTEND::tuner_status::tuner_type", props[idx].id)) {
-            if (!(props[idx].value >>= s.tuner_type)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+            if (!(props[idx].value >>= s.tuner_type)) return false;
+        }
+        else if (!strcmp("FRONTEND::tuner_status::stream_id", props[idx].id)) {
+            if (!(props[idx].value >>= s.stream_id)) return false;
         }
     }
     return true;
@@ -161,7 +115,7 @@ inline bool operator>>= (const CORBA::Any& a, frontend_tuner_status_struct_struc
 
 inline void operator<<= (CORBA::Any& a, const frontend_tuner_status_struct_struct& s) {
     CF::Properties props;
-    props.length(8);
+    props.length(9);
     props[0].id = CORBA::string_dup("FRONTEND::tuner_status::allocation_id_csv");
     props[0].value <<= s.allocation_id_csv;
     props[1].id = CORBA::string_dup("FRONTEND::tuner_status::bandwidth");
@@ -178,6 +132,8 @@ inline void operator<<= (CORBA::Any& a, const frontend_tuner_status_struct_struc
     props[6].value <<= s.sample_rate;
     props[7].id = CORBA::string_dup("FRONTEND::tuner_status::tuner_type");
     props[7].value <<= s.tuner_type;
+    props[8].id = CORBA::string_dup("FRONTEND::tuner_status::stream_id");
+    props[8].value <<= s.stream_id;
     a <<= props;
 };
 
@@ -198,6 +154,8 @@ inline bool operator== (const frontend_tuner_status_struct_struct& s1, const fro
         return false;
     if (s1.tuner_type!=s2.tuner_type)
         return false;
+    if (s1.stream_id!=s2.stream_id)
+        return false;
     return true;
 };
 
@@ -213,7 +171,7 @@ struct File_struct {
     };
 
     static std::string getId() {
-        return std::string("available_files::File");
+        return std::string("availableFiles::File");
     };
 
     std::string path;
@@ -225,21 +183,11 @@ inline bool operator>>= (const CORBA::Any& a, File_struct& s) {
     if (!(a >>= temp)) return false;
     CF::Properties& props = *temp;
     for (unsigned int idx = 0; idx < props.length(); idx++) {
-        if (!strcmp("available_files::path", props[idx].id)) {
-            if (!(props[idx].value >>= s.path)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+        if (!strcmp("availableFiles::path", props[idx].id)) {
+            if (!(props[idx].value >>= s.path)) return false;
         }
-        else if (!strcmp("available_files::size", props[idx].id)) {
-            if (!(props[idx].value >>= s.size)) {
-                CORBA::TypeCode_var typecode = props[idx].value.type();
-                if (typecode->kind() != CORBA::tk_null) {
-                    return false;
-                }
-            }
+        else if (!strcmp("availableFiles::size", props[idx].id)) {
+            if (!(props[idx].value >>= s.size)) return false;
         }
     }
     return true;
@@ -248,9 +196,9 @@ inline bool operator>>= (const CORBA::Any& a, File_struct& s) {
 inline void operator<<= (CORBA::Any& a, const File_struct& s) {
     CF::Properties props;
     props.length(2);
-    props[0].id = CORBA::string_dup("available_files::path");
+    props[0].id = CORBA::string_dup("availableFiles::path");
     props[0].value <<= s.path;
-    props[1].id = CORBA::string_dup("available_files::size");
+    props[1].id = CORBA::string_dup("availableFiles::size");
     props[1].value <<= s.size;
     a <<= props;
 };

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 if [ "$1" = "rpm" ]; then
     # A very simplistic RPM build scenario
@@ -17,17 +17,7 @@ else
     for impl in cpp ; do
         cd $impl
         if [ -e build.sh ]; then
-            if [ $# == 1 ]; then
-                if [ $1 == 'clean' ]; then
-                    rm -f Makefile
-                    rm -f config.*
-                    ./build.sh distclean
-                else
-                    ./build.sh $*
-                fi
-            else
-                ./build.sh $*
-            fi
+            ./build.sh $*
         elif [ -e reconf ]; then
             ./reconf && ./configure && make $*
         else

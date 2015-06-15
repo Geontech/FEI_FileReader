@@ -27,7 +27,6 @@ Requires:       redhawk >= 1.10
 BuildRequires:  frontendInterfaces >= 2.2 bulkioInterfaces >= 1.10
 Requires:       frontendInterfaces >= 2.2 bulkioInterfaces >= 1.10
 
-
 %description
 Device %{name}
 

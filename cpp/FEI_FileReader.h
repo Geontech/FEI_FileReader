@@ -17,6 +17,7 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         void initialize() throw (CF::LifeCycle::InitializeError, CORBA::SystemException);
         int serviceFunction();
+        void start() throw (CF::Resource::StartError, CORBA::SystemException);
         void stop() throw (CF::Resource::StopError, CORBA::SystemException);
 
     protected:
@@ -58,17 +59,21 @@ class FEI_FileReader_i : public FEI_FileReader_base
         void AdvancedPropertiesChanged(const AdvancedProperties_struct *oldValue, const AdvancedProperties_struct *newValue);
         void construct();
         void filePathChanged(const std::string *oldValue, const std::string *newValue);
+        void fileReaderDisable(size_t tunerId);
+        void fileReaderEnable(size_t tunerId);
+        std::string getStreamId(size_t tunerId);
         void playbackStateChanged(const std::string *oldValue, const std::string *newValue);
         void setPlaybackState(const std::string &value);
         void setPlaybackState(const std::string &value, const std::string &oldValue);
 
         void setNumChannels(size_t numChannels);
-        void updateAvailableFiles();
+        void updateAvailableFilesVector();
         void updateAvailableFilesChanged(const bool *oldValue, const bool *newValue);
 
     private:
         std::vector<FileReader *> fileReaders;
         bool isPlaying;
+        frontend::RFInfoPkt rfInfoPkt;
 };
 
 #endif // FEI_FILEREADER_IMPL_H

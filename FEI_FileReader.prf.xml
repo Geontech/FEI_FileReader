@@ -45,6 +45,9 @@
       <simple id="FRONTEND::tuner_status::tuner_type" name="tuner_type" type="string">
         <description>Example Tuner Types: TX, RX, CHANNELIZER, DDC, RX_DIGITIZER, RX_DIGTIZIER_CHANNELIZER</description>
       </simple>
+      <simple id="FRONTEND::tuner_status::stream_id" name="stream_id" type="string">
+        <description>Stream ID associated with tuner/allocation</description>
+      </simple>
     </struct>
     <configurationkind kindtype="configure"/>
   </structsequence>
@@ -149,22 +152,22 @@ False: Does not need control and can just attach to any currently tasked device 
     <kind kindtype="configure"/>
     <action type="external"/>
   </simple>
-  <structsequence id="available_files" mode="readonly" name="available_files">
+  <structsequence id="availableFiles" mode="readonly" name="availableFiles">
     <description>Lists all files found at the path specified in the filePath property.</description>
-    <struct id="available_files::File" name="File">
+    <struct id="availableFiles::File" name="File">
       <description>A description of an available file.</description>
-      <simple id="available_files::path" name="path" type="string">
+      <simple id="availableFiles::path" name="path" type="string">
         <description>The path of the file.</description>
         <value></value>
       </simple>
-      <simple id="available_files::size" name="size" type="ulonglong">
+      <simple id="availableFiles::size" name="size" type="ulonglong">
         <description>The size of the file.</description>
         <value>0</value>
       </simple>
     </struct>
     <configurationkind kindtype="configure"/>
   </structsequence>
-  <simple id="update_available_files" mode="readwrite" name="update_available_files" type="boolean">
+  <simple id="updateAvailableFiles" mode="readwrite" name="updateAvailableFiles" type="boolean">
     <description>When set to true, the available_files property will be updated with all available files found at the path specified by the filePath property.</description>
     <value>False</value>
     <kind kindtype="configure"/>

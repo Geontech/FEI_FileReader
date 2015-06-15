@@ -1,17 +1,13 @@
-#!/bin/bash
+#!/bin/sh
 
-# Create the Makefile if necessary
-if [ ! -e Makefile ]; then
-  ./reconf
-  ./configure
-fi
-
-if [ $# == 1 ]; then
-    if [ $1 == 'clean' ]; then
-        make distclean
-    else
-        make -j $*
-    fi
+if [ "$1" = "clean" ]; then
+  make clean
 else
-    make -j $*
+  # Checks if build is newer than makefile (based on modification time)
+  if [ ! -e configure ] || [ ! -e Makefile ] || [ configure.ac -nt Makefile ] || [ Makefile.am -nt Makefile ]; then
+    ./reconf
+    ./configure
+  fi
+  make -j
+  exit 0
 fi

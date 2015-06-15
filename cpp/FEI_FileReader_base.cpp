@@ -165,10 +165,10 @@ void FEI_FileReader_base::loadProperties()
                 "external",
                 "configure");
 
-    addProperty(update_available_files,
+    addProperty(updateAvailableFiles,
                 false,
-                "update_available_files",
-                "update_available_files",
+                "updateAvailableFiles",
+                "updateAvailableFiles",
                 "readwrite",
                 "",
                 "external",
@@ -193,9 +193,9 @@ void FEI_FileReader_base::loadProperties()
                 "external",
                 "configure");
 
-    addProperty(available_files,
-                "available_files",
-                "available_files",
+    addProperty(availableFiles,
+                "availableFiles",
+                "availableFiles",
                 "readonly",
                 "",
                 "external",
@@ -204,8 +204,8 @@ void FEI_FileReader_base::loadProperties()
 }
 
 /* This sets the number of entries in the frontend_tuner_status struct sequence property
- * as well as the tuner_allocation_ids vector. Call this function during initialization
- */
+ *  * as well as the tuner_allocation_ids vector. Call this function during initialization
+ *   */
 void FEI_FileReader_base::setNumChannels(size_t num)
 {
     frontend_tuner_status.clear();
@@ -256,8 +256,8 @@ void FEI_FileReader_base::assignListener(const std::string& listen_alloc_id, con
             new_entries.push_back(tmp);
         }
     }
+    bool foundEntry = false;
     for (std::vector<connection_descriptor_struct>::iterator new_entry=new_entries.begin();new_entry!=new_entries.end();new_entry++) {
-        bool foundEntry = false;
         for (std::vector<connection_descriptor_struct>::iterator entry=connectionTable.begin();entry!=connectionTable.end();entry++) {
             if (entry == new_entry) {
                 foundEntry = true;

@@ -39,6 +39,9 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl, char *
 
 FEI_FileReader_i::~FEI_FileReader_i()
 {
+    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
+        delete this->fileReaders[id];
+    }
 }
 
 void FEI_FileReader_i::initialize() throw (CF::LifeCycle::InitializeError, CORBA::SystemException)
@@ -49,9 +52,23 @@ void FEI_FileReader_i::initialize() throw (CF::LifeCycle::InitializeError, CORBA
     start();
 }
 
+void FEI_FileReader_i::start() throw (CF::Resource::StartError, CORBA::SystemException)
+{
+    if (not Resource_impl::started()) {
+        Resource_impl::start();
+    }
+}
+
 void FEI_FileReader_i::stop() throw (CF::Resource::StopError, CORBA::SystemException)
 {
-    FEI_FileReader_base::stop();
+    // Iterate through file readers to disable any enabled ones
+    for (size_t tunerId = 0; tunerId < this->fileReaders.size(); ++tunerId) {
+        deviceDisable(this->frontend_tuner_status[tunerId], tunerId);
+    }
+
+    if (Resource_impl::started()) {
+        Resource_impl::stop();
+    }
 }
 
 /***********************************************************************************************
@@ -254,11 +271,13 @@ void FEI_FileReader_i::construct()
     addPropertyChangeListener("AdvancedProperties", this, &FEI_FileReader_i::AdvancedPropertiesChanged);
     addPropertyChangeListener("filePath", this, &FEI_FileReader_i::filePathChanged);
     addPropertyChangeListener("playbackState", this, &FEI_FileReader_i::playbackStateChanged);
-    addPropertyChangeListener("update_available_files", this, &FEI_FileReader_i::updateAvailableFilesChanged);
+    addPropertyChangeListener("updateAvailableFiles", this, &FEI_FileReader_i::updateAvailableFilesChanged);
 
-    //this->fileReader.setPacketSize(this->AdvancedProperties.PacketSize);
-    //this->fileReader.setQueueSize(this->AdvancedProperties.QueueSize);
-    this->isPlaying = false;
+    // Initialize the RF Info Packet with very large ranges
+    this->rfInfoPkt.rf_flow_id = "FEI_FILEREADER_FLOW_ID_NOT_SET";
+    this->rfInfoPkt.rf_center_freq = 50e9;
+    this->rfInfoPkt.rf_bandwidth = 100e9;
+    this->rfInfoPkt.if_center_freq = 0;
 }
 
 void FEI_FileReader_i::filePathChanged(const std::string *oldValue, const std::string *newValue)
@@ -269,9 +288,53 @@ void FEI_FileReader_i::filePathChanged(const std::string *oldValue, const std::s
         return;
     }
 
-    updateAvailableFiles();
+    updateAvailableFilesVector();
 
     LOG_INFO(FEI_FileReader_i, "Found " << this->fileReaders.size() << " files to read");
+}
+
+void FEI_FileReader_i::fileReaderDisable(size_t tunerId)
+{
+    bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
+    this->frontend_tuner_status[tunerId].enabled = false;
+
+    this->fileReaders[tunerId]->stop();
+}
+
+void FEI_FileReader_i::fileReaderEnable(size_t tunerId)
+{
+    bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
+    this->frontend_tuner_status[tunerId].enabled = true;
+
+    // get stream id (creates one if not already created for this tuner)
+    std::string streamId = getStreamId(tunerId);
+
+    if (not previouslyEnabled) {
+        BULKIO::StreamSRI sri = create(streamId, this->frontend_tuner_status[tunerId]);
+
+        // TODO: Push SRI on all ports or be smart and figure out data type?
+    }
+
+    this->fileReaders[tunerId]->start();
+}
+
+std::string FEI_FileReader_i::getStreamId(size_t tunerId)
+{
+    if (tunerId >= this->fileReaders.size())
+        return "ERR: INVALID TUNER ID";
+
+    if (this->frontend_tuner_status[tunerId].stream_id.empty()){
+        std::ostringstream id;
+
+        id << "tuner_freq_" <<
+                long(this->frontend_tuner_status[tunerId].center_frequency) <<
+                "_Hz_" << frontend::uuidGenerator();
+
+        frontend_tuner_status[tunerId].stream_id = id.str();
+        //usrp_tuners[tunerId].update_sri = true;
+    }
+
+    return this->frontend_tuner_status[tunerId].stream_id;
 }
 
 void FEI_FileReader_i::playbackStateChanged(const std::string *oldValue, const std::string *newValue)
@@ -330,19 +393,20 @@ void FEI_FileReader_i::setNumChannels(size_t numChannels)
 
     for (size_t id = 0; id < this->fileReaders.size(); ++id) {
         this->fileReaders[id] = new FileReader();
+        this->fileReaders[id]->setFilePath(this->availableFiles[id].path);
     }
 }
 
-void FEI_FileReader_i::updateAvailableFiles()
+void FEI_FileReader_i::updateAvailableFilesVector()
 {
-    this->available_files.clear();
+    this->availableFiles.clear();
 
     if (boost::filesystem::is_regular_file(this->filePath)) {
         File_struct file;
         file.path = this->filePath;
         file.size = boost::filesystem::file_size(this->filePath);
 
-        this->available_files.push_back(file);
+        this->availableFiles.push_back(file);
     } else if (boost::filesystem::is_directory(this->filePath)) {
         for (boost::filesystem::directory_iterator i(this->filePath); i != boost::filesystem::directory_iterator(); i++) {
             boost::filesystem::directory_entry e(*i);
@@ -352,53 +416,80 @@ void FEI_FileReader_i::updateAvailableFiles()
                 file.path = e.path().string();
                 file.size = boost::filesystem::file_size(file.path);
 
-                this->available_files.push_back(file);
+                this->availableFiles.push_back(file);
             }
         }
     } else {
         LOG_WARN(FEI_FileReader_i, "Unsupported file type (symbolic link, empty file/directory, etc.");
     }
 
-    Update the frontend tuner status
+    setNumChannels(this->availableFiles.size());
 
-    setNumChannels(this->available_files.size());
+    for (size_t tunerId = 0; tunerId < this->fileReaders.size(); ++tunerId) {
+        this->frontend_tuner_status[tunerId].allocation_id_csv = "";
+        this->frontend_tuner_status[tunerId].bandwidth = 256000;
+        this->frontend_tuner_status[tunerId].center_frequency = 99100000;
+        this->frontend_tuner_status[tunerId].enabled = false;
+        this->frontend_tuner_status[tunerId].group_id = "";
+        this->frontend_tuner_status[tunerId].rf_flow_id = "";
+        this->frontend_tuner_status[tunerId].sample_rate = 256000;
+        this->frontend_tuner_status[tunerId].stream_id = "";
+        this->frontend_tuner_status[tunerId].tuner_type = "RX_DIGITIZER";
+    }
 }
 
 void FEI_FileReader_i::updateAvailableFilesChanged(const bool *oldValue, const bool *newValue)
 {
-    if (this->update_available_files) {
-        updateAvailableFiles();
+    if (this->updateAvailableFiles) {
+        updateAvailableFilesVector();
     }
 
-    this->update_available_files = false;
+    this->updateAvailableFiles = false;
 }
 
 /*************************************************************
 Functions supporting tuning allocation
 *************************************************************/
-void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts, size_t tuner_id){
+void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts, size_t tuner_id)
+{
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     Make sure to set the 'enabled' member of fts to indicate that tuner as enabled
     ************************************************************/
-    #warning deviceEnable(): Enable the given tuner  *********
+    fileReaderEnable(tuner_id);
     return;
 }
-void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts, size_t tuner_id){
+
+void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts, size_t tuner_id)
+{
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     Make sure to reset the 'enabled' member of fts to indicate that tuner as disabled
     ************************************************************/
-    #warning deviceDisable(): Disable the given tuner  *********
+    fileReaderDisable(tuner_id);
     return;
 }
+
 bool FEI_FileReader_i::deviceSetTuning(const frontend::frontend_tuner_allocation_struct &request, frontend_tuner_status_struct_struct &fts, size_t tuner_id){
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     return true if the tuning succeeded, and false if it failed
     ************************************************************/
-    #warning deviceSetTuning(): Evaluate whether or not a tuner is added  *********
-    return BOOL_VALUE_HERE;
+    if (fts.tuner_type == "RX_DIGITIZER") {
+        try {
+            if (not frontend::validateRequestVsDevice(request, this->rfInfoPkt, true, 0, 10e9, 10e9, 10e9)) {
+                throw FRONTEND::BadParameterException("INVALID REQUEST -- falls outside of file capabilities");
+            }
+        } catch (FRONTEND::BadParameterException &e) {
+            LOG_INFO(FEI_FileReader_i,"deviceSetTuning|BadParameterException - " << e.msg);
+            throw;
+        }
+
+        // Specify the parameters of the request for the purposes
+        // of throttling
+    }
+
+    return true;
 }
 bool FEI_FileReader_i::deviceDeleteTuning(frontend_tuner_status_struct_struct &fts, size_t tuner_id) {
     /************************************************************

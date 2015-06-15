@@ -43,10 +43,10 @@ class FEI_FileReader_base : public frontend::FrontendTunerDevice<frontend_tuner_
         // Member variables exposed as properties
         std::string filePath;
         std::string playbackState;
-        bool update_available_files;
+        bool updateAvailableFiles;
         AdvancedProperties_struct AdvancedProperties;
         std::vector<connection_descriptor_struct> connectionTable;
-        std::vector<File_struct> available_files;
+        std::vector<File_struct> availableFiles;
 
         // Ports
         frontend::InRFInfoPort *RFInfo_in;
