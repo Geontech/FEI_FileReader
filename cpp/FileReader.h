@@ -44,7 +44,7 @@ class FileReader
     public:
         // Interface functions
         const std::string& getFilePath() const;
-        bool setFilePath(const std::string &newFilePath);
+        virtual bool setFilePath(const std::string &newFilePath);
 
         const size_t& getPacketSize() const;
         void setPacketSize(const size_t &newPacketSize);

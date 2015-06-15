@@ -392,7 +392,7 @@ void FEI_FileReader_i::setNumChannels(size_t numChannels)
     this->fileReaders.resize(numChannels);
 
     for (size_t id = 0; id < this->fileReaders.size(); ++id) {
-        this->fileReaders[id] = new FileReader();
+        this->fileReaders[id] = new RedHawkFileReader();
         this->fileReaders[id]->setFilePath(this->availableFiles[id].path);
     }
 }

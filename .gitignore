@@ -2,6 +2,7 @@ cpp/.deps/
 cpp/FEI_FileReader
 cpp/FEI_FileReader-FEI_FileReader.o
 cpp/FEI_FileReader-FEI_FileReader_base.o
+cpp/FEI_FileReader-RedHawkFileReader.o
 cpp/FEI_FileReader-FileReader.o
 cpp/FEI_FileReader-main.o
 cpp/FEI_FileReader-template_impl.o

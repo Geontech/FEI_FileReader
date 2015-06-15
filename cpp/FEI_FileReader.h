@@ -3,7 +3,7 @@
 
 #include "FEI_FileReader_base.h"
 
-#include "FileReader.h"
+#include "RedHawkFileReader.h"
 
 class FEI_FileReader_i : public FEI_FileReader_base
 {
@@ -71,7 +71,7 @@ class FEI_FileReader_i : public FEI_FileReader_base
         void updateAvailableFilesChanged(const bool *oldValue, const bool *newValue);
 
     private:
-        std::vector<FileReader *> fileReaders;
+        std::vector<RedHawkFileReader *> fileReaders;
         bool isPlaying;
         frontend::RFInfoPkt rfInfoPkt;
 };
