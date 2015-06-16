@@ -29,36 +29,46 @@ bool RedHawkFileReader::setFilePath(const std::string &newFilePath)
     }
 
     // Attempt to parse the file name as input for configuring the stream data
-    boost::filesystem::path pathObject(newFilePath);
-
-    LOG_INFO(RedHawkFileReader, pathObject.filename().string());
-
-    std::vector<std::string> strings;
-
-    // The format is filename_CF_SR<_BW>.TYPE<R>
-    // filename: Any filename used to identify the data
+    // The format is fileHandle_CF_SR<_BW>.TYPE<R>
+    // fileHandle: Any handle used to identify the data
     // CF: The center frequency of the data
     // SR: The sample rate of the data
     // BW: The optional bandwidth.  If not included, use optional complex
     //      specifier to determine bandwidth
     // TYPE: The data type of the data (f, h, d)
     // R: When present, the data is treated as real, otherwise, complex
-    boost::regex e("([^_]+)_([^_]+)_([^_]+)");
-    boost::smatch what;
+    boost::filesystem::path pathObject(newFilePath);
+    boost::regex re("([^_]+)_([^_]+)_([^_]+)");
+    const std::string fileName = pathObject.filename().string();
+    std::string::const_iterator begin = fileName.begin();
+    boost::smatch result;
 
-    if (boost::regex_search(pathObject.filename().string(), what, e)) {
-        LOG_INFO(RedHawkFileReader, what.size());
+    while (boost::regex_search(begin, fileName.end(), result, re)) {
+        size_t i;
 
-        for (size_t i = 0; i < what.size(); ++i) {
-            LOG_INFO(RedHawkFileReader, what[i].str());
+        for (i = 0; i < result.size(); ++i) {
+            std::string value(result[i].first, result[i].second);
+            std::istringstream buffer;
+
+            if (i == 2) {
+                LOG_INFO(RedHawkFileReader, "CF: " << value);
+                /*buffer << value;
+                buffer >> this->centerFrequency;*/
+            } else if (i == 3 && result.size() == 4) {
+                std::vector<std::string> strings;
+
+                boost::split(strings, value, boost::is_any_of("."));
+
+                LOG_INFO(RedHawkFileReader, "SR: " << strings[0]);
+                LOG_INFO(RedHawkFileReader, "TYPE: " << strings[1]);
+
+                /*buffer << value;
+                buffer >> this->sampleRate;*/
+            }
         }
+
+        begin = result[i-1].second;
     }
-
-    /*boost::split(strings, pathObject.filename().string(), boost::is_any_of("_"));
-
-    for (std::vector<std::string>::iterator i = strings.begin(); i != strings.end(); ++i) {
-        LOG_INFO(RedHawkFileReader, *i);
-    }*/
 
     return true;
 }
