@@ -66,9 +66,10 @@ class FEI_FileReader_i : public FEI_FileReader_base
         void setPlaybackState(const std::string &value);
         void setPlaybackState(const std::string &value, const std::string &oldValue);
 
-        void setNumChannels(size_t numChannels);
         void updateAvailableFilesVector();
         void updateAvailableFilesChanged(const bool *oldValue, const bool *newValue);
+        void updateFileReaders();
+        void updateRfFlowId(const std::string &rfFlowId);
 
     private:
         std::vector<RedHawkFileReader *> fileReaders;

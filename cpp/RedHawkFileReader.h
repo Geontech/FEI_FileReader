@@ -24,6 +24,8 @@ class RedHawkFileReader: public FileReader
 
         const double& getCenterFrequency() const;
 
+        const bool& getComplex() const;
+
         const double& getSampleRate() const;
 
         const std::string& getType() const;

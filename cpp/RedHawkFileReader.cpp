@@ -37,6 +37,11 @@ const double& RedHawkFileReader::getCenterFrequency() const
     return this->centerFrequency;
 }
 
+const bool& RedHawkFileReader::getComplex() const
+{
+    return this->complex;
+}
+
 const double& RedHawkFileReader::getSampleRate() const
 {
     return this->sampleRate;
@@ -56,7 +61,7 @@ bool RedHawkFileReader::setFilePath(const std::string &newFilePath)
 
     // Get the name of the file from the path
     boost::filesystem::path pathObject(newFilePath);
-    const std::string fileName = pathObject.filename();
+    const std::string fileName = pathObject.filename().string();
 
     // Attempt to extract metadata from the file name
     std::string fileHandle, cf, sr, bw, type, cx;

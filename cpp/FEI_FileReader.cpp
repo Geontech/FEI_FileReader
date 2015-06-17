@@ -380,23 +380,6 @@ void FEI_FileReader_i::setPlaybackState(const std::string &value, const std::str
     this->playbackState = finalValue;
 }
 
-void FEI_FileReader_i::setNumChannels(size_t numChannels)
-{
-    FEI_FileReader_base::setNumChannels(numChannels);
-
-    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
-        delete this->fileReaders[id];
-    }
-
-    this->fileReaders.clear();
-    this->fileReaders.resize(numChannels);
-
-    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
-        this->fileReaders[id] = new RedHawkFileReader();
-        this->fileReaders[id]->setFilePath(this->availableFiles[id].path);
-    }
-}
-
 void FEI_FileReader_i::updateAvailableFilesVector()
 {
     this->availableFiles.clear();
@@ -423,18 +406,39 @@ void FEI_FileReader_i::updateAvailableFilesVector()
         LOG_WARN(FEI_FileReader_i, "Unsupported file type (symbolic link, empty file/directory, etc.");
     }
 
-    setNumChannels(this->availableFiles.size());
+    updateFileReaders();
+
+    setNumChannels(this->fileReaders.size());
 
     for (size_t tunerId = 0; tunerId < this->fileReaders.size(); ++tunerId) {
         this->frontend_tuner_status[tunerId].allocation_id_csv = "";
-        this->frontend_tuner_status[tunerId].bandwidth = 256000;
-        this->frontend_tuner_status[tunerId].center_frequency = 99100000;
         this->frontend_tuner_status[tunerId].enabled = false;
         this->frontend_tuner_status[tunerId].group_id = "";
         this->frontend_tuner_status[tunerId].rf_flow_id = "";
-        this->frontend_tuner_status[tunerId].sample_rate = 256000;
         this->frontend_tuner_status[tunerId].stream_id = "";
         this->frontend_tuner_status[tunerId].tuner_type = "RX_DIGITIZER";
+
+        this->frontend_tuner_status[tunerId].center_frequency =
+                this->fileReaders[tunerId]->getCenterFrequency();
+        this->frontend_tuner_status[tunerId].sample_rate =
+                this->fileReaders[tunerId]->getSampleRate();
+
+        if (this->fileReaders[tunerId]->getBandwidth() == -1) {
+            if (this->fileReaders[tunerId]->getSampleRate() != -1) {
+                if (this->fileReaders[tunerId]->getComplex()) {
+                    this->frontend_tuner_status[tunerId].bandwidth =
+                            this->fileReaders[tunerId]->getSampleRate();
+                } else {
+                    this->frontend_tuner_status[tunerId].bandwidth =
+                            this->fileReaders[tunerId]->getSampleRate() / 2;
+                }
+            } else {
+                this->frontend_tuner_status[tunerId].bandwidth = -1;
+            }
+        } else {
+            this->frontend_tuner_status[tunerId].bandwidth =
+                    this->fileReaders[tunerId]->getBandwidth();
+        }
     }
 }
 
@@ -445,6 +449,36 @@ void FEI_FileReader_i::updateAvailableFilesChanged(const bool *oldValue, const b
     }
 
     this->updateAvailableFiles = false;
+}
+
+void FEI_FileReader_i::updateFileReaders()
+{
+    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
+        delete this->fileReaders[id];
+    }
+
+    this->fileReaders.clear();
+
+    RedHawkFileReader *newFileReader = NULL;
+
+    for (size_t id = 0; id < this->availableFiles.size(); ++id) {
+        newFileReader = new RedHawkFileReader();
+
+        if (newFileReader->setFilePath(this->availableFiles[id].path)) {
+            this->fileReaders.push_back(newFileReader);
+        } else {
+            delete newFileReader;
+        }
+    }
+}
+
+void FEI_FileReader_i::updateRfFlowId(const std::string &rfFlowId)
+{
+    for (size_t tunerId = 0; tunerId < this->frontend_tuner_status.size();
+            ++tunerId) {
+        frontend_tuner_status[tunerId].rf_flow_id = rfFlowId;
+        // TODO: update_sri = true
+    }
 }
 
 /*************************************************************
@@ -487,7 +521,17 @@ bool FEI_FileReader_i::deviceSetTuning(const frontend::frontend_tuner_allocation
 
         // Specify the parameters of the request for the purposes
         // of throttling
+
+        // Create a stream id if not already created for this file
+        std::string streamId = getStreamId(tuner_id);
+
+        // Enable multi-out capability
+        matchAllocationIdToStreamId(request.allocation_id, streamId, "dataShort_out");
+
+        // TODO: update_sri = true
     }
+
+    // TODO: Update Device Info?
 
     return true;
 }
@@ -496,8 +540,18 @@ bool FEI_FileReader_i::deviceDeleteTuning(frontend_tuner_status_struct_struct &f
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     return true if the tune deletion succeeded, and false if it failed
     ************************************************************/
-    #warning deviceDeleteTuning(): Deallocate an allocated tuner  *********
-    return BOOL_VALUE_HERE;
+    std::string streamId = getStreamId(tuner_id);
+    BULKIO::StreamSRI sri = create(streamId,
+                                    this->frontend_tuner_status[tuner_id]);
+
+    sri.mode = this->fileReaders[tuner_id]->getComplex();
+
+    // TODO: Push SRI
+    // TODO: update_sri = false
+    // TODO: Push remaining samples with EOS
+    fts.stream_id = "";
+
+    return true;
 }
 
 /*************************************************************
@@ -530,13 +584,7 @@ std::string FEI_FileReader_i::getTunerRfFlowId(const std::string& allocation_id)
 }
 
 void FEI_FileReader_i::setTunerCenterFrequency(const std::string& allocation_id, double freq) {
-    long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
-    if(allocation_id != getControlAllocationId(idx))
-        throw FRONTEND::FrontendException(("ID "+allocation_id+" does not have authorization to modify the tuner").c_str());
-    if (freq<0) throw FRONTEND::BadParameterException();
-    // set hardware to new value. Raise an exception if it's not possible
-    this->frontend_tuner_status[idx].center_frequency = freq;
+    throw FRONTEND::NotSupportedException("setTunerCenterFrequency not supported");
 }
 
 double FEI_FileReader_i::getTunerCenterFrequency(const std::string& allocation_id) {
@@ -546,13 +594,7 @@ double FEI_FileReader_i::getTunerCenterFrequency(const std::string& allocation_i
 }
 
 void FEI_FileReader_i::setTunerBandwidth(const std::string& allocation_id, double bw) {
-    long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
-    if(allocation_id != getControlAllocationId(idx))
-        throw FRONTEND::FrontendException(("ID "+allocation_id+" does not have authorization to modify the tuner").c_str());
-    if (bw<0) throw FRONTEND::BadParameterException();
-    // set hardware to new value. Raise an exception if it's not possible
-    this->frontend_tuner_status[idx].bandwidth = bw;
+    throw FRONTEND::NotSupportedException("setTunerBandwidth not supported");
 }
 
 double FEI_FileReader_i::getTunerBandwidth(const std::string& allocation_id) {
@@ -607,13 +649,7 @@ bool FEI_FileReader_i::getTunerEnable(const std::string& allocation_id) {
 }
 
 void FEI_FileReader_i::setTunerOutputSampleRate(const std::string& allocation_id, double sr) {
-    long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
-    if(allocation_id != getControlAllocationId(idx))
-        throw FRONTEND::FrontendException(("ID "+allocation_id+" does not have authorization to modify the tuner").c_str());
-    if (sr<0) throw FRONTEND::BadParameterException();
-    // set hardware to new value. Raise an exception if it's not possible
-    this->frontend_tuner_status[idx].sample_rate = sr;
+    throw FRONTEND::NotSupportedException("setTunerOutputSampleRate not supported");
 }
 
 double FEI_FileReader_i::getTunerOutputSampleRate(const std::string& allocation_id){
@@ -628,20 +664,37 @@ Functions servicing the RFInfo port(s)
 *************************************************************/
 std::string FEI_FileReader_i::get_rf_flow_id(const std::string& port_name)
 {
-    return std::string("none");
+    if (port_name == "RFInfo_in") {
+        return this->rfInfoPkt.rf_flow_id;
+    } else {
+        return "";
+    }
 }
 
 void FEI_FileReader_i::set_rf_flow_id(const std::string& port_name, const std::string& id)
 {
+    if (port_name == "RFInfo_in") {
+        updateRfFlowId(id);
+        this->rfInfoPkt.rf_flow_id = id;
+    }
 }
 
 frontend::RFInfoPkt FEI_FileReader_i::get_rfinfo_pkt(const std::string& port_name)
 {
     frontend::RFInfoPkt pkt;
+
+    if (port_name == "RFInfo_in") {
+        pkt = this->rfInfoPkt;
+    }
+
     return pkt;
 }
 
 void FEI_FileReader_i::set_rfinfo_pkt(const std::string& port_name, const frontend::RFInfoPkt &pkt)
 {
+    if (port_name == "RFInfo_in") {
+        updateRfFlowId(pkt.rf_flow_id);
+        this->rfInfoPkt = pkt;
+    }
 }
 
