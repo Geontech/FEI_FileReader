@@ -55,7 +55,6 @@ class ResourceTests(ossie.utils.testing.ScaComponentTestCase):
         #######################################################################
         # Simulate regular resource shutdown
         self.comp.releaseObject()
-
     # TODO Add additional tests here
     #
     # See:

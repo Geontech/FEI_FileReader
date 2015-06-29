@@ -1,20 +1,20 @@
 /*
- * RedHawkFileReader.cpp
+ * FormattedFileReader.cpp
  *
  *  Created on: Jun 15, 2015
  *      Author: patrick
  */
 
-#include "RedHawkFileReader.h"
+#include "FormattedFileReader.h"
 
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
 
-PREPARE_LOGGING(RedHawkFileReader)
+PREPARE_LOGGING(FormattedFileReader)
 
-RedHawkFileReader::RedHawkFileReader() :
+FormattedFileReader::FormattedFileReader() :
     bandwidth(-1),
     complex(true),
     centerFrequency(-1),
@@ -23,51 +23,51 @@ RedHawkFileReader::RedHawkFileReader() :
 {
 }
 
-RedHawkFileReader::~RedHawkFileReader()
+FormattedFileReader::~FormattedFileReader()
 {
 }
 
-const double& RedHawkFileReader::getBandwidth() const
+const double& FormattedFileReader::getBandwidth() const
 {
     return this->bandwidth;
 }
 
-const double& RedHawkFileReader::getCenterFrequency() const
+const double& FormattedFileReader::getCenterFrequency() const
 {
     return this->centerFrequency;
 }
 
-const bool& RedHawkFileReader::getComplex() const
+const bool& FormattedFileReader::getComplex() const
 {
     return this->complex;
 }
 
-const double& RedHawkFileReader::getSampleRate() const
+const double& FormattedFileReader::getSampleRate() const
 {
     return this->sampleRate;
 }
 
-const std::string& RedHawkFileReader::getType() const
+const std::string& FormattedFileReader::getType() const
 {
     return this->type;
 }
 
-bool RedHawkFileReader::setFilePath(const std::string &newFilePath)
+bool FormattedFileReader::setFilePath(const std::string &newFilePath)
 {
     if (not FileReader::setFilePath(newFilePath)) {
-        LOG_WARN(RedHawkFileReader, "Ignoring file name as configuration");
+        LOG_WARN(FormattedFileReader, "Ignoring file name as configuration");
         return false;
     }
 
     // Get the name of the file from the path
     boost::filesystem::path pathObject(newFilePath);
-    const std::string fileName = pathObject.filename().string();
+    const std::string fileName = pathObject.filename();
 
     // Attempt to extract metadata from the file name
     std::string fileHandle, cf, sr, bw, type, cx;
 
     if (not fromFileName(fileName, fileHandle, cf, sr, bw, type, cx)) {
-        LOG_WARN(RedHawkFileReader, "Unable to extract metadata from file "
+        LOG_WARN(FormattedFileReader, "Unable to extract metadata from file "
                     << fileName);
         return true;
     }
@@ -105,16 +105,7 @@ bool RedHawkFileReader::setFilePath(const std::string &newFilePath)
     }
 
     this->complex = (cx == "complex");
-
-    std::cout << "CF: " << cf << std::endl;
-    std::cout << "CF2: " << this->centerFrequency << std::endl;
-    std::cout << "SR: " << sr << std::endl;
-    std::cout << "SR2: " << this->sampleRate << std::endl;
-    std::cout << "BW: " << bw << std::endl;
-    std::cout << "BW2: " << this->bandwidth << std::endl;
-    std::cout << "Type: " << type << std::endl;
-    std::cout << "Complex: " << cx << std::endl;
-    std::cout << "Complex2: " << this->complex << std::endl;
+    this->type = type;
 
     return true;
 }
@@ -126,10 +117,10 @@ bool RedHawkFileReader::setFilePath(const std::string &newFilePath)
  * SR: The sample rate of the data
  * BW: The optional bandwidth.  If not included, use optional complex
  *      specifier to determine bandwidth
- * TYPE: The data type of the data (32f, 16s, 8u)
+ * TYPE: The data type of the data (B, I, UB) based on MIDAS format
  * R: When present, the data is treated as real, otherwise, complex
  */
-bool RedHawkFileReader::fromFileName(const std::string &fileName,
+bool FormattedFileReader::fromFileName(const std::string &fileName,
                                     std::string &fileHandle,
                                     std::string &cf, std::string &sr,
                                     std::string &bw, std::string &type,
@@ -138,11 +129,9 @@ bool RedHawkFileReader::fromFileName(const std::string &fileName,
     boost::regex splitterRE("([^_]+)_([^_]+)_([^_]+)_?(.*)$");
     boost::smatch results;
 
-    LOG_INFO(RedHawkFileReader, "File name: " << fileName);
-
     if (not boost::regex_search(fileName.begin(), fileName.end(),
             results, splitterRE)) {
-        LOG_WARN(RedHawkFileReader, "Invalid format for " << fileName <<
+        LOG_WARN(FormattedFileReader, "Invalid format for " << fileName <<
                     ". Should be fileHandle_CF_SR<_BW>.TYPE<R>");
         return false;
     }
@@ -160,7 +149,7 @@ bool RedHawkFileReader::fromFileName(const std::string &fileName,
     if (fourthValue == "") {
         if (not boost::regex_search(thirdValue.begin(), thirdValue.end(),
                                         innerResults, finalSplitterRE)) {
-            LOG_WARN(RedHawkFileReader, "Invalid format");
+            LOG_WARN(FormattedFileReader, "Invalid format");
             return false;
         }
 
@@ -172,7 +161,7 @@ bool RedHawkFileReader::fromFileName(const std::string &fileName,
 
         if (not boost::regex_search(fourthValue.begin(), fourthValue.end(),
                 innerResults, finalSplitterRE)) {
-            LOG_WARN(RedHawkFileReader, "Invalid format");
+            LOG_WARN(FormattedFileReader, "Invalid format");
             return false;
         }
 
@@ -197,7 +186,7 @@ bool RedHawkFileReader::fromFileName(const std::string &fileName,
     return true;
 }
 
-double RedHawkFileReader::multiplierFromUnit(const std::string &unit)
+double FormattedFileReader::multiplierFromUnit(const std::string &unit)
 {
     switch (unit[0]) {
         case 'k':
@@ -214,18 +203,16 @@ double RedHawkFileReader::multiplierFromUnit(const std::string &unit)
     return 1;
 }
 
-bool RedHawkFileReader::splitNumberAndUnit(const std::string &numberAndUnit,
+bool FormattedFileReader::splitNumberAndUnit(const std::string &numberAndUnit,
                                 std::string &number,
                                 std::string &unit)
 {
     boost::regex splitterRE("(\\d+)([^\\d\\s]*)");
     boost::smatch results;
 
-    std::cout << "NumberAndUnit: " << numberAndUnit << std::endl;
-
     if (not boost::regex_search(numberAndUnit.begin(), numberAndUnit.end(),
                                     results, splitterRE)) {
-        LOG_WARN(RedHawkFileReader, "Invalid format for " << numberAndUnit <<
+        LOG_WARN(FormattedFileReader, "Invalid format for " << numberAndUnit <<
                     ". Should be number then optional unit");
         return false;
     }

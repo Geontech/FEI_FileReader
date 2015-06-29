@@ -8,6 +8,7 @@
 *******************************************************************************************/
 
 #include <ossie/CorbaUtils.h>
+#include <CF/cf.h>
 #include <bulkio/bulkio.h>
 typedef bulkio::connection_descriptor_struct connection_descriptor_struct;
 
@@ -16,7 +17,7 @@ typedef bulkio::connection_descriptor_struct connection_descriptor_struct;
 struct AdvancedProperties_struct {
     AdvancedProperties_struct ()
     {
-        PacketSize = 1887436;
+        PacketSize = 1887440;
         QueueSize = 25;
     };
 
@@ -34,10 +35,20 @@ inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
     CF::Properties& props = *temp;
     for (unsigned int idx = 0; idx < props.length(); idx++) {
         if (!strcmp("AdvancedProperties::PacketSize", props[idx].id)) {
-            if (!(props[idx].value >>= s.PacketSize)) return false;
+            if (!(props[idx].value >>= s.PacketSize)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("AdvancedProperties::QueueSize", props[idx].id)) {
-            if (!(props[idx].value >>= s.QueueSize)) return false;
+            if (!(props[idx].value >>= s.QueueSize)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
     }
     return true;
@@ -83,31 +94,76 @@ inline bool operator>>= (const CORBA::Any& a, frontend_tuner_status_struct_struc
     CF::Properties& props = *temp;
     for (unsigned int idx = 0; idx < props.length(); idx++) {
         if (!strcmp("FRONTEND::tuner_status::allocation_id_csv", props[idx].id)) {
-            if (!(props[idx].value >>= s.allocation_id_csv)) return false;
+            if (!(props[idx].value >>= s.allocation_id_csv)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::bandwidth", props[idx].id)) {
-            if (!(props[idx].value >>= s.bandwidth)) return false;
+            if (!(props[idx].value >>= s.bandwidth)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::center_frequency", props[idx].id)) {
-            if (!(props[idx].value >>= s.center_frequency)) return false;
+            if (!(props[idx].value >>= s.center_frequency)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::enabled", props[idx].id)) {
-            if (!(props[idx].value >>= s.enabled)) return false;
+            if (!(props[idx].value >>= s.enabled)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::group_id", props[idx].id)) {
-            if (!(props[idx].value >>= s.group_id)) return false;
+            if (!(props[idx].value >>= s.group_id)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::rf_flow_id", props[idx].id)) {
-            if (!(props[idx].value >>= s.rf_flow_id)) return false;
+            if (!(props[idx].value >>= s.rf_flow_id)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::sample_rate", props[idx].id)) {
-            if (!(props[idx].value >>= s.sample_rate)) return false;
+            if (!(props[idx].value >>= s.sample_rate)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::tuner_type", props[idx].id)) {
-            if (!(props[idx].value >>= s.tuner_type)) return false;
+            if (!(props[idx].value >>= s.tuner_type)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("FRONTEND::tuner_status::stream_id", props[idx].id)) {
-            if (!(props[idx].value >>= s.stream_id)) return false;
+            if (!(props[idx].value >>= s.stream_id)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
     }
     return true;
@@ -184,10 +240,20 @@ inline bool operator>>= (const CORBA::Any& a, File_struct& s) {
     CF::Properties& props = *temp;
     for (unsigned int idx = 0; idx < props.length(); idx++) {
         if (!strcmp("availableFiles::path", props[idx].id)) {
-            if (!(props[idx].value >>= s.path)) return false;
+            if (!(props[idx].value >>= s.path)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
         else if (!strcmp("availableFiles::size", props[idx].id)) {
-            if (!(props[idx].value >>= s.size)) return false;
+            if (!(props[idx].value >>= s.size)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
         }
     }
     return true;

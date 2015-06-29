@@ -13,265 +13,227 @@
 
 PREPARE_LOGGING(FEI_FileReader_i)
 
-FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl, char *sftwrPrfl) :
+FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
+                                    char *sftwrPrfl) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     construct();
 }
 
-FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl, char *sftwrPrfl, char *compDev) :
+FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
+                                    char *sftwrPrfl, char *compDev) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, compDev)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     construct();
 }
 
-FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl, char *sftwrPrfl, CF::Properties capacities) :
+FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
+                                    char *sftwrPrfl,
+                                    CF::Properties capacities) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     construct();
 }
 
-FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl, char *sftwrPrfl, CF::Properties capacities, char *compDev) :
+FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
+                                    char *sftwrPrfl,
+                                    CF::Properties capacities, char *compDev) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities, compDev)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     construct();
 }
 
 FEI_FileReader_i::~FEI_FileReader_i()
 {
-    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
-        delete this->fileReaders[id];
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    for (size_t id = 0; id < this->fileReaderContainers.size(); ++id) {
+        delete this->fileReaderContainers[id].fileReader;
     }
 }
 
-void FEI_FileReader_i::initialize() throw (CF::LifeCycle::InitializeError, CORBA::SystemException)
+void FEI_FileReader_i::initialize() throw (CF::LifeCycle::InitializeError,
+                                        CORBA::SystemException)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     FEI_FileReader_base::initialize();
 
     // Start the device after initialization
     start();
 }
 
-void FEI_FileReader_i::start() throw (CF::Resource::StartError, CORBA::SystemException)
+void FEI_FileReader_i::start() throw (CF::Resource::StartError,
+                                        CORBA::SystemException)
 {
-    if (not Resource_impl::started()) {
-        Resource_impl::start();
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (not FEI_FileReader_base::started()) {
+        FEI_FileReader_base::start();
     }
 }
 
-void FEI_FileReader_i::stop() throw (CF::Resource::StopError, CORBA::SystemException)
+void FEI_FileReader_i::stop() throw (CF::Resource::StopError,
+                                        CORBA::SystemException)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     // Iterate through file readers to disable any enabled ones
-    for (size_t tunerId = 0; tunerId < this->fileReaders.size(); ++tunerId) {
+    for (size_t tunerId = 0; tunerId < this->fileReaderContainers.size();
+            ++tunerId) {
         deviceDisable(this->frontend_tuner_status[tunerId], tunerId);
     }
 
-    if (Resource_impl::started()) {
-        Resource_impl::stop();
+    if (FEI_FileReader_base::started()) {
+        FEI_FileReader_base::stop();
     }
 }
 
-/***********************************************************************************************
-
-    Basic functionality:
-
-        The service function is called by the serviceThread object (of type ProcessThread).
-        This call happens immediately after the previous call if the return value for
-        the previous call was NORMAL.
-        If the return value for the previous call was NOOP, then the serviceThread waits
-        an amount of time defined in the serviceThread's constructor.
-        
-    SRI:
-        To create a StreamSRI object, use the following code:
-                std::string stream_id = "testStream";
-                BULKIO::StreamSRI sri = bulkio::sri::create(stream_id);
-
-    Time:
-        To create a PrecisionUTCTime object, use the following code:
-                BULKIO::PrecisionUTCTime tstamp = bulkio::time::utils::now();
-
-        
-    Ports:
-
-        Data is passed to the serviceFunction through the getPacket call (BULKIO only).
-        The dataTransfer class is a port-specific class, so each port implementing the
-        BULKIO interface will have its own type-specific dataTransfer.
-
-        The argument to the getPacket function is a floating point number that specifies
-        the time to wait in seconds. A zero value is non-blocking. A negative value
-        is blocking.  Constants have been defined for these values, bulkio::Const::BLOCKING and
-        bulkio::Const::NON_BLOCKING.
-
-        Each received dataTransfer is owned by serviceFunction and *MUST* be
-        explicitly deallocated.
-
-        To send data using a BULKIO interface, a convenience interface has been added 
-        that takes a std::vector as the data input
-
-        NOTE: If you have a BULKIO dataSDDS or dataVITA49  port, you must manually call 
-              "port->updateStats()" to update the port statistics when appropriate.
-
-        Example:
-            // this example assumes that the device has two ports:
-             *
-            //  A provides (input) port of type bulkio::InShortPort called short_in
-            //  A uses (output) port of type bulkio::OutFloatPort called float_out
-            // The mapping between the port and the class is found
-            // in the device base class header file
-
-            bulkio::InShortPort::dataTransfer *tmp = short_in->getPacket(bulkio::Const::BLOCKING);
-            if (not tmp) { // No data is available
-                return NOOP;
-            }
-
-            std::vector<float> outputData;
-            outputData.resize(tmp->dataBuffer.size());
-            for (unsigned int i=0; i<tmp->dataBuffer.size(); i++) {
-                outputData[i] = (float)tmp->dataBuffer[i];
-            }
-
-            // NOTE: You must make at least one valid pushSRI call
-            if (tmp->sriChanged) {
-                float_out->pushSRI(tmp->SRI);
-            }
-            float_out->pushPacket(outputData, tmp->T, tmp->EOS, tmp->streamID);
-td::cout << *i << std::endl;
-            delete tmp; // IMPORTANT: MUST RELEASE THE RECEIVED DATA BLOCK
-            return NORMAL;
-
-        If working with complex data (i.e., the "mode" on the SRI is set to
-        true), the std::vector passed from/to BulkIO can be typecast to/from
-        std::vector< std::complex<dataType> >.  For example, for short data:
-
-            bulkio::InShortPort::dataTransfer *tmp = myInput->getPacket(bulkio::Const::BLOCKING);
-            std::vector<std::complex<short> >* intermediate = (std::vector<std::complex<short> >*) &(tmp->dataBuffer);
-            // do work here
-            std::vector<short>* output = (std::vector<short>*) intermediate;
-            myOutput->pushPacket(*output, tmp->T, tmp->EOS, tmp->streamID);
-
-        Interactions with non-BULKIO ports are left up to the device developer's discretion
-
-    Properties:
-        
-        Properties are accessed directly as member variables. For example, if the
-        property name is "baudRate", it may be accessed within member functions as
-        "baudRate". Unnamed properties are given the property id as its name.
-        Property types are mapped to the nearest C++ type, (e.g. "string" becomes
-        "std::string"). All generated properties are declared in the base class
-        (FEI_FileReader_base).
-    
-        Simple sequence properties are mapped to "std::vector" of the simple type.
-        Struct properties, if used, are mapped to C++ structs defined in the
-        generated file "struct_props.h". Field names are taken from the name in
-        the properties file; if no name is given, a generated name of the form
-        "field_n" is used, where "n" is the ordinal number of the field.
-        
-        Example:
-            // This example makes use of the following Properties:
-            //  - A float value called scaleValue
-            //  - A boolean called scaleInput
-              
-            if (scaleInput) {
-                dataOut[i] = dataIn[i] * scaleValue;
-            } else {
-                dataOut[i] = dataIn[i];
-            }
-            
-        Callback methods can be associated with a property so that the methods are
-        called each time the property value changes.  This is done by calling 
-        addPropertyChangeListener(<property name>, this, &FEI_FileReader_i::<callback method>)
-        in the constructor.
-
-        Callback methods should take two arguments, both const pointers to the value
-        type (e.g., "const float *"), and return void.
-
-        Example:
-            // This example makes use of the following Properties:
-            //  - A float value called scaleValue
-            
-        //Add to FEI_FileReader.cpp
-        FEI_FileReader_i::FEI_FileReader_i(const char *uuid, const char *label) :
-            FEI_FileReader_base(uuid, label)
-        {
-            addPropertyChangeListener("scaleValue", this, &FEI_FileReader_i::scaleChanged);
-        }
-
-        void FEI_FileReader_i::scaleChanged(const float *oldValue, const float *newValue)
-        {
-            std::cout << "scaleValue changed from" << *oldValue << " to " << *newValue
-                      << std::endl;
-        }
-            
-        //Add to FEI_FileReader.h
-        void scaleChanged(const float* oldValue, const float* newValue);
-        
-    Allocation:
-    
-        Allocation callbacks are available to customize the Device's response to 
-        allocation requests. For example, if the Device contains the allocation 
-        property "my_alloc" of type string, the allocation and deallocation
-        callbacks follow the pattern (with arbitrileReader_i, "Reading file at: " << this->filepath);ary function names
-        my_alloc_fn and my_dealloc_fn):
-        
-        bool FEI_FileReader_i::my_alloc_fn(const std::string &value)
-        {
-            // perform logic
-            return true; // successful allocation
-        }
-        void FEI_FileReader_i::my_dealloc_fn(const std::string &value)
-        {
-            // perform logic
-        }
-        
-        The allocation and deallocation functions are then registered with the Device
-        base class with the setAllocationImpl call:
-        
-        this->setAllocationImpl("my_alloc", this, &FEI_FileReader_i::my_alloc_fn, &FEI_FileReader_i::my_dealloc_fn);
-        
-        
-
-************************************************************************************************/
 int FEI_FileReader_i::serviceFunction()
 {
-    /*if (not this->isPlaying) {
-        return NOOP;
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    bool rx_data = false;
+
+    for (size_t tunerId = 0; tunerId < this->fileReaderContainers.size();
+            ++tunerId) {
+        // Check to see if the channel is allocated before requesting a data
+        // packet
+        if (getControlAllocationId(tunerId).empty()) {
+            continue;
+        }
+
+        // Check to see if the output is enabled
+        if (not this->frontend_tuner_status[tunerId].enabled) {
+            continue;
+        }
+
+        // Get the type of data the file reader is pulling in
+        const std::string type =
+                this->fileReaderContainers[tunerId].
+                        fileReader->getType();
+
+        // Check if we're currently waiting for a packet to be ready for
+        // throttling
+        if (fileReaderContainers[tunerId].currentPacket == NULL) {
+            this->fileReaderContainers[tunerId].currentPacket =
+                    this->fileReaderContainers[tunerId].
+                            fileReader->getNextPacket();
+
+            if (this->fileReaderContainers[tunerId].currentPacket == NULL) {
+                continue;
+            }
+
+            this->fileReaderContainers[tunerId].firstSeen =
+                    boost::get_system_time();
+
+            // Calculate the time duration for this packet based on the
+            // number of samples, the requested sample rate, and the complexity
+            size_t bytes = this->fileReaderContainers[tunerId].
+                                    currentPacket->dataSize;
+
+            size_t samples = bytes / sizeFromType(type);
+
+            if (this->fileReaderContainers[tunerId].fileReader->getComplex()) {
+                samples /= 2;
+            }
+
+            double sampleRate = this->frontend_tuner_status[tunerId].
+                                        sample_rate;
+            double timeDuration = samples / sampleRate;
+
+            int seconds = timeDuration;
+
+            // TODO: Figure out a way to determine if time_duration minimum
+            // resolution is microseconds or nanoseconds
+            int fractional = 1e6 * (timeDuration - seconds);
+
+            this->fileReaderContainers[tunerId].timeDuration =
+                    boost::posix_time::time_duration(0, 0,
+                            seconds, fractional);
+
+            // Update the delay, if necessary
+            if ((this->fileReaderContainers[tunerId].
+                    timeDuration.total_nanoseconds() / 1.0e9) < getThreadDelay()) {
+                setThreadDelay((this->fileReaderContainers[tunerId].
+                        timeDuration.total_nanoseconds() / 1.0e9) / 10);
+            }
+        }
+
+        // Check if the amount of time has elapsed for this packet
+        if ((boost::get_system_time() -
+                    this->fileReaderContainers[tunerId].firstSeen) <
+                    this->fileReaderContainers[tunerId].timeDuration) {
+            continue;
+        }
+
+        rx_data = true;
+
+        std::string streamId = getStreamId(tunerId);
+
+        // If the update SRI flag is set, push the SRI packet
+        if (this->fileReaderContainers[tunerId].updateSRI) {
+            BULKIO::StreamSRI sri = create(streamId, this->frontend_tuner_status[tunerId]);
+            sri.mode = this->fileReaderContainers[tunerId].
+                    fileReader->getComplex();
+
+            pushSRIByType(sri, type);
+
+            this->fileReaderContainers[tunerId].updateSRI = false;
+        }
+
+        pushPacketByType(this->fileReaderContainers[tunerId].currentPacket,
+                false, streamId, type);
+
+        this->fileReaderContainers[tunerId].
+                fileReader->replacePacket(this->fileReaderContainers[tunerId].
+                        currentPacket);
+
+        this->fileReaderContainers[tunerId].currentPacket = NULL;
     }
 
-    if (not fileReader.isReady()) {
-        setPlaybackState("STOP");
-        return NOOP;
+    if (rx_data) {
+        return NORMAL;
     }
 
-    FilePacket * const packet = this->fileReader.getNextPacket();
-    
-    if (packet == NULL) {
-        return NOOP;
-    }
-
-    LOG_INFO(FEI_FileReader_i, "Got packet of size " << packet->dataSize << " bytes");
-
-    this->fileReader.replacePacket(packet);*/
-
-    return NORMAL;
+    return NOOP;
 }
 
-void FEI_FileReader_i::AdvancedPropertiesChanged(const AdvancedProperties_struct *oldValue, const AdvancedProperties_struct *newValue)
+void FEI_FileReader_i::AdvancedPropertiesChanged(
+        const AdvancedProperties_struct *oldValue,
+        const AdvancedProperties_struct *newValue)
 {
-    /*if (oldValue->PacketSize != newValue->PacketSize) {
-        this->fileReader.setPacketSize(newValue->PacketSize);
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (oldValue->PacketSize != newValue->PacketSize) {
+        setPacketSizes(newValue->PacketSize);
     }
 
     if (oldValue->QueueSize != newValue->QueueSize) {
-        this->fileReader.setQueueSize(newValue->QueueSize);
-    }*/
+        setQueueSizes(newValue->QueueSize);
+    }
 }
 
 void FEI_FileReader_i::construct()
 {
-    addPropertyChangeListener("AdvancedProperties", this, &FEI_FileReader_i::AdvancedPropertiesChanged);
-    addPropertyChangeListener("filePath", this, &FEI_FileReader_i::filePathChanged);
-    addPropertyChangeListener("playbackState", this, &FEI_FileReader_i::playbackStateChanged);
-    addPropertyChangeListener("updateAvailableFiles", this, &FEI_FileReader_i::updateAvailableFilesChanged);
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    addPropertyChangeListener("AdvancedProperties", this,
+            &FEI_FileReader_i::AdvancedPropertiesChanged);
+    addPropertyChangeListener("filePath", this,
+            &FEI_FileReader_i::filePathChanged);
+    addPropertyChangeListener("loop", this,
+            &FEI_FileReader_i::loopChanged);
+    addPropertyChangeListener("updateAvailableFiles", this,
+            &FEI_FileReader_i::updateAvailableFilesChanged);
 
     // Initialize the RF Info Packet with very large ranges
     this->rfInfoPkt.rf_flow_id = "FEI_FILEREADER_FLOW_ID_NOT_SET";
@@ -280,8 +242,11 @@ void FEI_FileReader_i::construct()
     this->rfInfoPkt.if_center_freq = 0;
 }
 
-void FEI_FileReader_i::filePathChanged(const std::string *oldValue, const std::string *newValue)
+void FEI_FileReader_i::filePathChanged(const std::string *oldValue,
+        const std::string *newValue)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     if (not boost::filesystem::exists(*newValue)) {
         LOG_WARN(FEI_FileReader_i, "Invalid file path");
         this->filePath = *oldValue;
@@ -290,19 +255,26 @@ void FEI_FileReader_i::filePathChanged(const std::string *oldValue, const std::s
 
     updateAvailableFilesVector();
 
-    LOG_INFO(FEI_FileReader_i, "Found " << this->fileReaders.size() << " files to read");
+    LOG_INFO(FEI_FileReader_i, "Found " << this->fileReaderContainers.size() <<
+            " files to read");
 }
 
 void FEI_FileReader_i::fileReaderDisable(size_t tunerId)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
     this->frontend_tuner_status[tunerId].enabled = false;
 
-    this->fileReaders[tunerId]->stop();
+    if (previouslyEnabled) {
+        this->fileReaderContainers[tunerId].fileReader->stop();
+    }
 }
 
 void FEI_FileReader_i::fileReaderEnable(size_t tunerId)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
     this->frontend_tuner_status[tunerId].enabled = true;
 
@@ -310,20 +282,25 @@ void FEI_FileReader_i::fileReaderEnable(size_t tunerId)
     std::string streamId = getStreamId(tunerId);
 
     if (not previouslyEnabled) {
-        BULKIO::StreamSRI sri = create(streamId, this->frontend_tuner_status[tunerId]);
+        BULKIO::StreamSRI sri = create(streamId,
+                this->frontend_tuner_status[tunerId]);
 
-        // TODO: Push SRI on all ports or be smart and figure out data type?
+        pushSRIByType(sri, this->fileReaderContainers[tunerId].
+                fileReader->getType());
+
+        this->fileReaderContainers[tunerId].fileReader->start();
     }
-
-    this->fileReaders[tunerId]->start();
 }
 
 std::string FEI_FileReader_i::getStreamId(size_t tunerId)
 {
-    if (tunerId >= this->fileReaders.size())
-        return "ERR: INVALID TUNER ID";
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (this->frontend_tuner_status[tunerId].stream_id.empty()){
+    if (tunerId >= this->fileReaderContainers.size()) {
+        return "ERR: INVALID TUNER ID";
+    }
+
+    if (this->frontend_tuner_status[tunerId].stream_id.empty()) {
         std::ostringstream id;
 
         id << "tuner_freq_" <<
@@ -331,57 +308,169 @@ std::string FEI_FileReader_i::getStreamId(size_t tunerId)
                 "_Hz_" << frontend::uuidGenerator();
 
         frontend_tuner_status[tunerId].stream_id = id.str();
-        //usrp_tuners[tunerId].update_sri = true;
+        this->fileReaderContainers[tunerId].updateSRI = true;
     }
 
     return this->frontend_tuner_status[tunerId].stream_id;
 }
 
-void FEI_FileReader_i::playbackStateChanged(const std::string *oldValue, const std::string *newValue)
+void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
 {
-    setPlaybackState(*newValue, *oldValue);
+    for (FileReaderIterator i = this->fileReaderContainers.begin();
+            i != this->fileReaderContainers.end(); ++i) {
+        i->fileReader->setLoopingEnabled(*newValue);
+    }
 }
 
-void FEI_FileReader_i::setPlaybackState(const std::string &value)
+void FEI_FileReader_i::pushPacketByType(const FilePacket *packet,
+        bool EOS,
+        const std::string &streamId,
+        const std::string &type)
 {
-    setPlaybackState(value, this->playbackState);
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
+
+    if (type == "B") {
+        std::vector<int8_t> output((int8_t *) &packet->data[0],
+                (int8_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataChar_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "UB") {
+        std::vector<uint8_t> output((uint8_t *) &packet->data[0],
+                (uint8_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataOctet_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "I") {
+        std::vector<int16_t> output((int16_t *) &packet->data[0],
+                (int16_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataShort_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "UI") {
+        std::vector<uint16_t> output((uint16_t *) &packet->data[0],
+                (uint16_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataUshort_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "L") {
+        std::vector<int32_t> output((int32_t *) &packet->data[0],
+                (int32_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataLong_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "UL") {
+        std::vector<uint32_t> output((uint32_t *) &packet->data[0],
+                (uint32_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataUlong_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "F") {
+        std::vector<float> output((float *) &packet->data[0],
+                (float *) (&packet->data[0] + packet->dataSize));
+
+        this->dataFloat_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "X") {
+        std::vector<int64_t> output((int64_t *) &packet->data[0],
+                (int64_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataLongLong_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "UX") {
+        std::vector<uint64_t> output((uint64_t *) &packet->data[0],
+                (uint64_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataUlongLong_out->pushPacket(output, T, EOS, streamId);
+    } else if (type == "D") {
+        std::vector<uint64_t> output((uint64_t *) &packet->data[0],
+                (uint64_t *) (&packet->data[0] + packet->dataSize));
+
+        this->dataUlongLong_out->pushPacket(output, T, EOS, streamId);
+    } else {
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
+    }
 }
 
-void FEI_FileReader_i::setPlaybackState(const std::string &value, const std::string &oldValue)
+void FEI_FileReader_i::pushSRIByType(BULKIO::StreamSRI &sri,
+        const std::string &type)
 {
-    std::string finalValue = value;
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (oldValue == "PLAY") {
-        if (value == "STOP") {
-            //this->fileReader.stop();
-            this->isPlaying = false;
-        } else if (value == "PAUSE") {
-            this->isPlaying = false;
-        }
-    } else if (oldValue == "STOP") {
-        if (value == "PLAY") {
-            //this->fileReader.start();
-            this->isPlaying = true;
-        } else if (value == "PAUSE") {
-            this->isPlaying = false;
-            finalValue = "STOP";
-        }
-    } else if (oldValue == "PAUSE") {
-        if (value == "PLAY") {
-            //this->fileReader.start();
-            this->isPlaying = true;
-        } else if (value == "STOP") {
-            //this->fileReader.stop();
-            this->isPlaying = false;
-        }
+    if (type == "B") {
+        this->dataChar_out->pushSRI(sri);
+    } else if (type == "UB") {
+        this->dataOctet_out->pushSRI(sri);
+    } else if (type == "I") {
+        this->dataShort_out->pushSRI(sri);
+    } else if (type == "UI") {
+        this->dataUshort_out->pushSRI(sri);
+    } else if (type == "L") {
+        this->dataLong_out->pushSRI(sri);
+    } else if (type == "UL") {
+        this->dataUlong_out->pushSRI(sri);
+    } else if (type == "F") {
+        this->dataFloat_out->pushSRI(sri);
+    } else if (type == "X") {
+        this->dataLongLong_out->pushSRI(sri);
+    } else if (type == "UX") {
+        this->dataUlongLong_out->pushSRI(sri);
+    } else if (type == "D") {
+        this->dataDouble_out->pushSRI(sri);
+    } else {
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
+    }
+}
+
+void FEI_FileReader_i::setPacketSizes(size_t packetSize)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    for (FileReaderIterator i = this->fileReaderContainers.begin();
+            i != this->fileReaderContainers.end(); ++i) {
+        i->fileReader->setPacketSize(packetSize);
+    }
+}
+
+void FEI_FileReader_i::setQueueSizes(size_t queueSize)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    for (FileReaderIterator i = this->fileReaderContainers.begin();
+            i != this->fileReaderContainers.end(); ++i) {
+        i->fileReader->setQueueSize(queueSize);
+    }
+}
+
+size_t FEI_FileReader_i::sizeFromType(const std::string &type)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (type == "B") {
+        return sizeof(int8_t);
+    } else if (type == "UB") {
+        return sizeof(uint8_t);
+    } else if (type == "I") {
+        return sizeof(int16_t);
+    } else if (type == "UI") {
+        return sizeof(uint16_t);
+    } else if (type == "L") {
+        return sizeof(int32_t);
+    } else if (type == "UL") {
+        return sizeof(uint32_t);
+    } else if (type == "F") {
+        return sizeof(float);
+    } else if (type == "X") {
+        return sizeof(int64_t);
+    } else if (type == "UX") {
+        return sizeof(uint64_t);
+    } else if (type == "D") {
+        return sizeof(double);
+    } else {
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
     }
 
-    LOG_INFO(FEI_FileReader_i, "Setting playback state to " << finalValue);
-    this->playbackState = finalValue;
+    return 0;
 }
 
 void FEI_FileReader_i::updateAvailableFilesVector()
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     this->availableFiles.clear();
 
     if (boost::filesystem::is_regular_file(this->filePath)) {
@@ -391,7 +480,8 @@ void FEI_FileReader_i::updateAvailableFilesVector()
 
         this->availableFiles.push_back(file);
     } else if (boost::filesystem::is_directory(this->filePath)) {
-        for (boost::filesystem::directory_iterator i(this->filePath); i != boost::filesystem::directory_iterator(); i++) {
+        for (boost::filesystem::directory_iterator i(this->filePath);
+                i != boost::filesystem::directory_iterator(); i++) {
             boost::filesystem::directory_entry e(*i);
 
             if (boost::filesystem::is_regular_file(e)) {
@@ -403,14 +493,16 @@ void FEI_FileReader_i::updateAvailableFilesVector()
             }
         }
     } else {
-        LOG_WARN(FEI_FileReader_i, "Unsupported file type (symbolic link, empty file/directory, etc.");
+        LOG_WARN(FEI_FileReader_i, "Unsupported file type (symbolic link," \
+                                        "empty file/directory, etc.)");
     }
 
     updateFileReaders();
 
-    setNumChannels(this->fileReaders.size());
+    setNumChannels(this->fileReaderContainers.size());
 
-    for (size_t tunerId = 0; tunerId < this->fileReaders.size(); ++tunerId) {
+    for (size_t tunerId = 0; tunerId < this->fileReaderContainers.size();
+            ++tunerId) {
         this->frontend_tuner_status[tunerId].allocation_id_csv = "";
         this->frontend_tuner_status[tunerId].enabled = false;
         this->frontend_tuner_status[tunerId].group_id = "";
@@ -419,31 +511,42 @@ void FEI_FileReader_i::updateAvailableFilesVector()
         this->frontend_tuner_status[tunerId].tuner_type = "RX_DIGITIZER";
 
         this->frontend_tuner_status[tunerId].center_frequency =
-                this->fileReaders[tunerId]->getCenterFrequency();
+                this->fileReaderContainers[tunerId].
+                        fileReader->getCenterFrequency();
         this->frontend_tuner_status[tunerId].sample_rate =
-                this->fileReaders[tunerId]->getSampleRate();
+                this->fileReaderContainers[tunerId].
+                        fileReader->getSampleRate();
 
-        if (this->fileReaders[tunerId]->getBandwidth() == -1) {
-            if (this->fileReaders[tunerId]->getSampleRate() != -1) {
-                if (this->fileReaders[tunerId]->getComplex()) {
+        if (this->fileReaderContainers[tunerId].
+                    fileReader->getBandwidth() == -1) {
+            if (this->fileReaderContainers[tunerId].
+                        fileReader->getSampleRate() != -1) {
+                if (this->fileReaderContainers[tunerId].
+                            fileReader->getComplex()) {
                     this->frontend_tuner_status[tunerId].bandwidth =
-                            this->fileReaders[tunerId]->getSampleRate();
+                            this->fileReaderContainers[tunerId].
+                                    fileReader->getSampleRate();
                 } else {
                     this->frontend_tuner_status[tunerId].bandwidth =
-                            this->fileReaders[tunerId]->getSampleRate() / 2;
+                            this->fileReaderContainers[tunerId].
+                                    fileReader->getSampleRate() / 2;
                 }
             } else {
                 this->frontend_tuner_status[tunerId].bandwidth = -1;
             }
         } else {
             this->frontend_tuner_status[tunerId].bandwidth =
-                    this->fileReaders[tunerId]->getBandwidth();
+                    this->fileReaderContainers[tunerId].
+                            fileReader->getBandwidth();
         }
     }
 }
 
-void FEI_FileReader_i::updateAvailableFilesChanged(const bool *oldValue, const bool *newValue)
+void FEI_FileReader_i::updateAvailableFilesChanged(const bool *oldValue,
+                                                    const bool *newValue)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     if (this->updateAvailableFiles) {
         updateAvailableFilesVector();
     }
@@ -453,19 +556,29 @@ void FEI_FileReader_i::updateAvailableFilesChanged(const bool *oldValue, const b
 
 void FEI_FileReader_i::updateFileReaders()
 {
-    for (size_t id = 0; id < this->fileReaders.size(); ++id) {
-        delete this->fileReaders[id];
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    for (size_t id = 0; id < this->fileReaderContainers.size(); ++id) {
+        delete this->fileReaderContainers[id].fileReader;
     }
 
-    this->fileReaders.clear();
+    this->fileReaderContainers.clear();
 
-    RedHawkFileReader *newFileReader = NULL;
+    FormattedFileReader *newFileReader = NULL;
 
     for (size_t id = 0; id < this->availableFiles.size(); ++id) {
-        newFileReader = new RedHawkFileReader();
+        FileReaderContainer container;
+
+        newFileReader = new FormattedFileReader;
 
         if (newFileReader->setFilePath(this->availableFiles[id].path)) {
-            this->fileReaders.push_back(newFileReader);
+            newFileReader->setLoopingEnabled(this->loop);
+            newFileReader->setPacketSize(this->AdvancedProperties.PacketSize);
+            newFileReader->setQueueSize(this->AdvancedProperties.QueueSize);
+
+            container.currentPacket = NULL;
+            container.fileReader = newFileReader;
+            this->fileReaderContainers.push_back(container);
         } else {
             delete newFileReader;
         }
@@ -474,17 +587,20 @@ void FEI_FileReader_i::updateFileReaders()
 
 void FEI_FileReader_i::updateRfFlowId(const std::string &rfFlowId)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     for (size_t tunerId = 0; tunerId < this->frontend_tuner_status.size();
             ++tunerId) {
         frontend_tuner_status[tunerId].rf_flow_id = rfFlowId;
-        // TODO: update_sri = true
+        this->fileReaderContainers[tunerId].updateSRI = true;
     }
 }
 
 /*************************************************************
 Functions supporting tuning allocation
 *************************************************************/
-void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts, size_t tuner_id)
+void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts,
+                                        size_t tuner_id)
 {
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
@@ -494,7 +610,8 @@ void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts, si
     return;
 }
 
-void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts, size_t tuner_id)
+void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts,
+                                        size_t tuner_id)
 {
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
@@ -504,19 +621,30 @@ void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts, s
     return;
 }
 
-bool FEI_FileReader_i::deviceSetTuning(const frontend::frontend_tuner_allocation_struct &request, frontend_tuner_status_struct_struct &fts, size_t tuner_id){
+bool FEI_FileReader_i::deviceSetTuning(
+        const frontend::frontend_tuner_allocation_struct &request,
+        frontend_tuner_status_struct_struct &fts, size_t tuner_id)
+{
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     return true if the tuning succeeded, and false if it failed
     ************************************************************/
     if (fts.tuner_type == "RX_DIGITIZER") {
         try {
-            if (not frontend::validateRequestVsDevice(request, this->rfInfoPkt, true, 0, 10e9, 10e9, 10e9)) {
-                throw FRONTEND::BadParameterException("INVALID REQUEST -- falls outside of file capabilities");
+            if (not frontend::validateRequestVsDevice(request, this->rfInfoPkt,
+                    this->fileReaderContainers[tuner_id].
+                            fileReader->getComplex(),
+                    this->frontend_tuner_status[tuner_id].center_frequency,
+                    this->frontend_tuner_status[tuner_id].center_frequency,
+                    this->frontend_tuner_status[tuner_id].bandwidth,
+                    this->frontend_tuner_status[tuner_id].sample_rate)) {
+                throw FRONTEND::BadParameterException("INVALID REQUEST --" \
+                                "falls outside of file capabilities");
             }
         } catch (FRONTEND::BadParameterException &e) {
-            LOG_INFO(FEI_FileReader_i,"deviceSetTuning|BadParameterException - " << e.msg);
-            throw;
+            LOG_DEBUG(FEI_FileReader_i,"deviceSetTuning|" \
+                    "BadParameterException - " << e.msg);
+            return false;
         }
 
         // Specify the parameters of the request for the purposes
@@ -526,29 +654,44 @@ bool FEI_FileReader_i::deviceSetTuning(const frontend::frontend_tuner_allocation
         std::string streamId = getStreamId(tuner_id);
 
         // Enable multi-out capability
-        matchAllocationIdToStreamId(request.allocation_id, streamId, "dataShort_out");
+        matchAllocationIdToStreamId(request.allocation_id, streamId, "");
 
-        // TODO: update_sri = true
+        // Enable the file reader
+        this->fileReaderContainers[tuner_id].fileReader->start();
+
+        this->fileReaderContainers[tuner_id].updateSRI = true;
     }
 
     // TODO: Update Device Info?
 
     return true;
 }
-bool FEI_FileReader_i::deviceDeleteTuning(frontend_tuner_status_struct_struct &fts, size_t tuner_id) {
+bool FEI_FileReader_i::deviceDeleteTuning(
+        frontend_tuner_status_struct_struct &fts, size_t tuner_id)
+{
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     return true if the tune deletion succeeded, and false if it failed
     ************************************************************/
+    this->fileReaderContainers[tuner_id].fileReader->stop();
+
     std::string streamId = getStreamId(tuner_id);
     BULKIO::StreamSRI sri = create(streamId,
                                     this->frontend_tuner_status[tuner_id]);
 
-    sri.mode = this->fileReaders[tuner_id]->getComplex();
+    sri.mode = this->fileReaderContainers[tuner_id].fileReader->getComplex();
 
-    // TODO: Push SRI
-    // TODO: update_sri = false
-    // TODO: Push remaining samples with EOS
+    pushSRIByType(sri, this->fileReaderContainers[tuner_id].
+            fileReader->getType());
+
+    this->fileReaderContainers[tuner_id].updateSRI = false;
+
+    FilePacket tempPacket;
+    tempPacket.dataSize = 0;
+
+    pushPacketByType(&tempPacket, true, streamId,
+            this->fileReaderContainers[tuner_id].fileReader->getType());
+
     fts.stream_id = "";
 
     return true;
@@ -557,53 +700,92 @@ bool FEI_FileReader_i::deviceDeleteTuning(frontend_tuner_status_struct_struct &f
 /*************************************************************
 Functions servicing the tuner control port
 *************************************************************/
-std::string FEI_FileReader_i::getTunerType(const std::string& allocation_id) {
+std::string FEI_FileReader_i::getTunerType(const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
     return frontend_tuner_status[idx].tuner_type;
 }
 
-bool FEI_FileReader_i::getTunerDeviceControl(const std::string& allocation_id) {
+bool FEI_FileReader_i::getTunerDeviceControl(const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
-    if (getControlAllocationId(idx) == allocation_id)
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
+    if (getControlAllocationId(idx) == allocation_id) {
         return true;
+    }
+
     return false;
 }
 
-std::string FEI_FileReader_i::getTunerGroupId(const std::string& allocation_id) {
+std::string FEI_FileReader_i::getTunerGroupId(const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
     return frontend_tuner_status[idx].group_id;
 }
 
-std::string FEI_FileReader_i::getTunerRfFlowId(const std::string& allocation_id) {
+std::string FEI_FileReader_i::getTunerRfFlowId(
+        const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
     return frontend_tuner_status[idx].rf_flow_id;
 }
 
-void FEI_FileReader_i::setTunerCenterFrequency(const std::string& allocation_id, double freq) {
+void FEI_FileReader_i::setTunerCenterFrequency(
+        const std::string& allocation_id, double freq)
+{
     throw FRONTEND::NotSupportedException("setTunerCenterFrequency not supported");
 }
 
-double FEI_FileReader_i::getTunerCenterFrequency(const std::string& allocation_id) {
+double FEI_FileReader_i::getTunerCenterFrequency(
+        const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
     return frontend_tuner_status[idx].center_frequency;
 }
 
-void FEI_FileReader_i::setTunerBandwidth(const std::string& allocation_id, double bw) {
+void FEI_FileReader_i::setTunerBandwidth(const std::string& allocation_id,
+                                            double bw)
+{
     throw FRONTEND::NotSupportedException("setTunerBandwidth not supported");
 }
 
-double FEI_FileReader_i::getTunerBandwidth(const std::string& allocation_id) {
+double FEI_FileReader_i::getTunerBandwidth(const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
     return frontend_tuner_status[idx].bandwidth;
 }
 
-void FEI_FileReader_i::setTunerAgcEnable(const std::string& allocation_id, bool enable)
+void FEI_FileReader_i::setTunerAgcEnable(const std::string& allocation_id,
+                                            bool enable)
 {
     throw FRONTEND::NotSupportedException("setTunerAgcEnable not supported");
 }
@@ -613,7 +795,8 @@ bool FEI_FileReader_i::getTunerAgcEnable(const std::string& allocation_id)
     throw FRONTEND::NotSupportedException("getTunerAgcEnable not supported");
 }
 
-void FEI_FileReader_i::setTunerGain(const std::string& allocation_id, float gain)
+void FEI_FileReader_i::setTunerGain(const std::string& allocation_id,
+                                        float gain)
 {
     throw FRONTEND::NotSupportedException("setTunerGain not supported");
 }
@@ -623,38 +806,65 @@ float FEI_FileReader_i::getTunerGain(const std::string& allocation_id)
     throw FRONTEND::NotSupportedException("getTunerGain not supported");
 }
 
-void FEI_FileReader_i::setTunerReferenceSource(const std::string& allocation_id, long source)
+void FEI_FileReader_i::setTunerReferenceSource(
+        const std::string& allocation_id, long source)
 {
-    throw FRONTEND::NotSupportedException("setTunerReferenceSource not supported");
+    throw FRONTEND::NotSupportedException("setTunerReferenceSource " \
+                                            "not supported");
 }
 
-long FEI_FileReader_i::getTunerReferenceSource(const std::string& allocation_id)
+long FEI_FileReader_i::getTunerReferenceSource(
+        const std::string& allocation_id)
 {
-    throw FRONTEND::NotSupportedException("getTunerReferenceSource not supported");
+    throw FRONTEND::NotSupportedException("getTunerReferenceSource " \
+                                            "not supported");
 }
 
-void FEI_FileReader_i::setTunerEnable(const std::string& allocation_id, bool enable) {
+void FEI_FileReader_i::setTunerEnable(const std::string& allocation_id,
+                                        bool enable)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
-    if(allocation_id != getControlAllocationId(idx))
-        throw FRONTEND::FrontendException(("ID "+allocation_id+" does not have authorization to modify the tuner").c_str());
-    // set hardware to new value. Raise an exception if it's not possible
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
+    if (allocation_id != getControlAllocationId(idx)) {
+        throw FRONTEND::FrontendException(("ID " + allocation_id +
+                " does not have authorization to modify the tuner").c_str());
+    }
+
+    // Set hardware to new value. Raise an exception if it's not possible
     this->frontend_tuner_status[idx].enabled = enable;
 }
 
-bool FEI_FileReader_i::getTunerEnable(const std::string& allocation_id) {
+bool FEI_FileReader_i::getTunerEnable(const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
     return frontend_tuner_status[idx].enabled;
 }
 
-void FEI_FileReader_i::setTunerOutputSampleRate(const std::string& allocation_id, double sr) {
-    throw FRONTEND::NotSupportedException("setTunerOutputSampleRate not supported");
+void FEI_FileReader_i::setTunerOutputSampleRate(
+        const std::string& allocation_id, double sr)
+{
+    throw FRONTEND::NotSupportedException("setTunerOutputSampleRate " \
+                                            "not supported");
 }
 
-double FEI_FileReader_i::getTunerOutputSampleRate(const std::string& allocation_id){
+double FEI_FileReader_i::getTunerOutputSampleRate(
+        const std::string& allocation_id)
+{
     long idx = getTunerMapping(allocation_id);
-    if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
+
+    if (idx < 0) {
+        throw FRONTEND::FrontendException("Invalid allocation id");
+    }
+
     return frontend_tuner_status[idx].sample_rate;
 }
 
@@ -671,7 +881,8 @@ std::string FEI_FileReader_i::get_rf_flow_id(const std::string& port_name)
     }
 }
 
-void FEI_FileReader_i::set_rf_flow_id(const std::string& port_name, const std::string& id)
+void FEI_FileReader_i::set_rf_flow_id(const std::string& port_name,
+                                        const std::string& id)
 {
     if (port_name == "RFInfo_in") {
         updateRfFlowId(id);
@@ -679,7 +890,8 @@ void FEI_FileReader_i::set_rf_flow_id(const std::string& port_name, const std::s
     }
 }
 
-frontend::RFInfoPkt FEI_FileReader_i::get_rfinfo_pkt(const std::string& port_name)
+frontend::RFInfoPkt FEI_FileReader_i::get_rfinfo_pkt(
+        const std::string& port_name)
 {
     frontend::RFInfoPkt pkt;
 
@@ -690,7 +902,8 @@ frontend::RFInfoPkt FEI_FileReader_i::get_rfinfo_pkt(const std::string& port_nam
     return pkt;
 }
 
-void FEI_FileReader_i::set_rfinfo_pkt(const std::string& port_name, const frontend::RFInfoPkt &pkt)
+void FEI_FileReader_i::set_rfinfo_pkt(const std::string& port_name,
+                                        const frontend::RFInfoPkt &pkt)
 {
     if (port_name == "RFInfo_in") {
         updateRfFlowId(pkt.rf_flow_id);

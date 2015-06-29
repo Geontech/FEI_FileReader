@@ -1,22 +1,22 @@
 /*
- * RedHawkFileReader.h
+ * FormattedFileReader.h
  *
  *  Created on: Jun 15, 2015
  *      Author: patrick
  */
 
-#ifndef REDHAWKFILEREADER_H_
-#define REDHAWKFILEREADER_H_
+#ifndef FORMATTEDFILEREADER_H_
+#define FORMATTEDFILEREADER_H_
 
 #include "FileReader.h"
 #include <ossie/debug.h>
 
-class RedHawkFileReader: public FileReader
+class FormattedFileReader: public FileReader
 {
     ENABLE_LOGGING
     public:
-        RedHawkFileReader();
-        virtual ~RedHawkFileReader();
+        FormattedFileReader();
+        virtual ~FormattedFileReader();
 
     public:
         //Interface functions

@@ -42,8 +42,8 @@ class FEI_FileReader_base : public frontend::FrontendTunerDevice<frontend_tuner_
 
         // Member variables exposed as properties
         std::string filePath;
-        std::string playbackState;
         bool updateAvailableFiles;
+        bool loop;
         AdvancedProperties_struct AdvancedProperties;
         std::vector<connection_descriptor_struct> connectionTable;
         std::vector<File_struct> availableFiles;

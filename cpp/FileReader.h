@@ -15,8 +15,7 @@
 struct FilePacket {
     char *data;
     size_t dataSize;
-    std::string filePath;
-    bool firstPacket;
+    bool lastPacket;
 };
 
 class FileReader
@@ -36,15 +35,18 @@ class FileReader
         bool isReady() const;
 
         // Request the next packet
-        FilePacket* const getNextPacket();
+        const FilePacket *getNextPacket();
 
         // Replace the packet
-        void replacePacket(FilePacket* const);
+        void replacePacket(const FilePacket *replacement);
 
     public:
         // Interface functions
         const std::string& getFilePath() const;
         virtual bool setFilePath(const std::string &newFilePath);
+
+        const bool& getLoopingEnabled() const;
+        void setLoopingEnabled(const bool &enable);
 
         const size_t& getPacketSize() const;
         void setPacketSize(const size_t &newPacketSize);
@@ -71,6 +73,7 @@ class FileReader
         boost::mutex freeQueueLock;
         std::string filePath;
         bool isPlaying;
+        bool loopingEnabled;
         size_t packetSize;
         size_t queueSize;
         boost::thread *threadHandle;

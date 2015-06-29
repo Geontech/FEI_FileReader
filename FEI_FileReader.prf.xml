@@ -131,7 +131,7 @@ False: Does not need control and can just attach to any currently tasked device 
     <description>Advanced properties for configuring the file reader.</description>
     <simple id="AdvancedProperties::PacketSize" name="PacketSize" type="ulong">
       <description>The number of bytes in each packet used to cache the file data.  The default is about 90% of the default CORBA maximum transfer size.</description>
-      <value>1887436</value>
+      <value>1887440</value>
       <units>bytes</units>
     </simple>
     <simple id="AdvancedProperties::QueueSize" name="QueueSize" type="ulong">
@@ -141,17 +141,6 @@ False: Does not need control and can just attach to any currently tasked device 
     </simple>
     <configurationkind kindtype="configure"/>
   </struct>
-  <simple id="playbackState" mode="readwrite" type="string">
-    <description>The property used to select and display the device's current playback state.</description>
-    <value>STOP</value>
-    <enumerations>
-      <enumeration label="Play" value="PLAY"/>
-      <enumeration label="Stop" value="STOP"/>
-      <enumeration label="Pause" value="PAUSE"/>
-    </enumerations>
-    <kind kindtype="configure"/>
-    <action type="external"/>
-  </simple>
   <structsequence id="availableFiles" mode="readonly" name="availableFiles">
     <description>Lists all files found at the path specified in the filePath property.</description>
     <struct id="availableFiles::File" name="File">
@@ -170,6 +159,12 @@ False: Does not need control and can just attach to any currently tasked device 
   <simple id="updateAvailableFiles" mode="readwrite" name="updateAvailableFiles" type="boolean">
     <description>When set to true, the available_files property will be updated with all available files found at the path specified by the filePath property.</description>
     <value>False</value>
+    <kind kindtype="configure"/>
+    <action type="external"/>
+  </simple>
+  <simple id="loop" mode="readwrite" type="boolean">
+    <description>Allow looping for each file.</description>
+    <value>false</value>
     <kind kindtype="configure"/>
     <action type="external"/>
   </simple>

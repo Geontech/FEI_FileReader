@@ -3,7 +3,18 @@
 
 #include "FEI_FileReader_base.h"
 
-#include "RedHawkFileReader.h"
+#include "FormattedFileReader.h"
+
+struct FileReaderContainer {
+    const FilePacket *currentPacket;
+    FormattedFileReader *fileReader;
+    boost::system_time firstSeen;
+    BULKIO::StreamSRI sri;
+    boost::posix_time::time_duration timeDuration;
+    bool updateSRI;
+};
+
+typedef std::vector<FileReaderContainer>::iterator FileReaderIterator;
 
 class FEI_FileReader_i : public FEI_FileReader_base
 {
@@ -62,17 +73,19 @@ class FEI_FileReader_i : public FEI_FileReader_base
         void fileReaderDisable(size_t tunerId);
         void fileReaderEnable(size_t tunerId);
         std::string getStreamId(size_t tunerId);
-        void playbackStateChanged(const std::string *oldValue, const std::string *newValue);
-        void setPlaybackState(const std::string &value);
-        void setPlaybackState(const std::string &value, const std::string &oldValue);
-
+        void loopChanged(const bool *oldValue, const bool *newValue);
+        void pushPacketByType(const FilePacket * const packet, bool EOS, const std::string &streamID, const std::string &type);
+        void pushSRIByType(BULKIO::StreamSRI &sri, const std::string &type);
+        void setPacketSizes(size_t packetSize);
+        void setQueueSizes(size_t queueSize);
+        size_t sizeFromType(const std::string &type);
         void updateAvailableFilesVector();
         void updateAvailableFilesChanged(const bool *oldValue, const bool *newValue);
         void updateFileReaders();
         void updateRfFlowId(const std::string &rfFlowId);
 
     private:
-        std::vector<RedHawkFileReader *> fileReaders;
+        std::vector<FileReaderContainer> fileReaderContainers;
         bool isPlaying;
         frontend::RFInfoPkt rfInfoPkt;
 };

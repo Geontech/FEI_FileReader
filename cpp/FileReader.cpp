@@ -17,6 +17,7 @@ PREPARE_LOGGING(FileReader)
  */
 FileReader::FileReader() :
     isPlaying(false),
+    loopingEnabled(false),
     packetSize(1000),
     queueSize(10),
     threadHandle(NULL)
@@ -81,7 +82,7 @@ bool FileReader::isReady() const
  * Return a pointer to the next allocated packet, if one is available.  If not,
  * wait for one or timeout
  */
-FilePacket* const FileReader::getNextPacket()
+const FilePacket *FileReader::getNextPacket()
 {
     LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
 
@@ -96,7 +97,7 @@ FilePacket* const FileReader::getNextPacket()
         }
     }
 
-    FilePacket * const packet = this->allocatedFilePackets.front();
+    FilePacket *packet = this->allocatedFilePackets.front();
 
     this->allocatedFilePackets.pop_front();
 
@@ -108,13 +109,16 @@ FilePacket* const FileReader::getNextPacket()
  * prevent memory leaks.  TODO: Think of a better way to do this.  Maybe a
  * callback?
  */
-void FileReader::replacePacket(FilePacket * const packet)
+void FileReader::replacePacket(const FilePacket *packet)
 {
     LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
 
     boost::mutex::scoped_lock lock(this->freeQueueLock);
 
-    this->freeFilePackets.push_back(packet);
+    // The const keyword is imposed on users outside of this class
+    FilePacket *internalPacket = const_cast<FilePacket *>(packet);
+
+    this->freeFilePackets.push_back(internalPacket);
 
     this->freePacketAvailable.notify_one();
 }
@@ -155,6 +159,22 @@ bool FileReader::setFilePath(const std::string &newFilePath)
     }
 
     return true;
+}
+
+/*
+ * Get the current looping enabled flag being used
+ */
+const bool& FileReader::getLoopingEnabled() const
+{
+    return this->loopingEnabled;
+}
+
+/*
+ * Set the looping flag
+ */
+void FileReader::setLoopingEnabled(const bool &enable)
+{
+    this->loopingEnabled = enable;
 }
 
 /*
@@ -243,28 +263,79 @@ void FileReader::fileReaderWorkFunction()
         return;
     }
 
-    // Get the size of the file and prepare the firstPacket flag
-    size_t remainingBytes = boost::filesystem::file_size(this->filePath);
-    bool firstPacket = true;
-
-    LOG_DEBUG(FileReader, "File is of size: " << remainingBytes << " bytes");
-
     do {
-        boost::mutex::scoped_lock freeLock(this->freeQueueLock);
+        // Get the size of the file and prepare the firstPacket flag
+        size_t remainingBytes = boost::filesystem::file_size(this->filePath);
 
-        // Check for a free packet
-        if (this->freeFilePackets.size() == 0) {
-            // Wait for a free packet signal
-            this->freePacketAvailable.wait(freeLock);
+        LOG_DEBUG(FileReader, "File is of size: " << remainingBytes << " bytes");
 
-            // If the signal has been received but no free packet is
-            // available, the thread has most likely been stopped.  If that
-            // isn't the case, this prevents errors at the cost of not
-            // finishing the file
+        in.seekg(0);
+
+        do {
+            boost::mutex::scoped_lock freeLock(this->freeQueueLock);
+
+            // Check for a free packet
             if (this->freeFilePackets.size() == 0) {
+                // Wait for a free packet signal
+                this->freePacketAvailable.wait(freeLock);
+
+                // If the signal has been received but no free packet is
+                // available, the thread has most likely been stopped.  If that
+                // isn't the case, this prevents errors at the cost of not
+                // finishing the file
+                if (this->freeFilePackets.size() == 0) {
+                    break;
+                }
+            }
+
+            // If the thread is asked to stop, break out of the loop and clean
+            // up the file
+            try {
+                boost::this_thread::interruption_point();
+            } catch (boost::thread_interrupted &e) {
+                LOG_DEBUG(FileReader, "Main thread requested interruption from file loop");
                 break;
             }
-        }
+
+            // Get and remove the first packet form the queue
+            FilePacket *packet = this->freeFilePackets.front();
+
+            this->freeFilePackets.pop_front();
+
+            freeLock.unlock();
+
+            // Read either the rest of the data, or the size of a packet,
+            // whichever is smaller
+            size_t bytesToRead = std::min(remainingBytes, this->packetSize);
+            size_t bytesRead = 0;
+
+            // Do this in a loop to cover partial reads
+            do {
+                in.read(&packet->data[bytesRead], bytesToRead - bytesRead);
+
+                bytesRead += in.gcount();
+            } while (not in || bytesRead < bytesToRead);
+
+            // Indicate the size of the data in the packet
+            packet->dataSize = bytesRead;
+
+            if (remainingBytes == 0) {
+                packet->lastPacket = true;
+            } else {
+                packet->lastPacket = false;
+            }
+
+            boost::mutex::scoped_lock allocatedLock(this->allocatedQueueLock);
+
+            // Insert the packet at the end of the allocated
+            // queue
+            this->allocatedFilePackets.push_back(packet);
+
+            this->allocatedPacketAvailable.notify_one();
+
+            // Adjust the number of bytes remaining
+            remainingBytes -= bytesRead;
+        } while (remainingBytes > 0);
 
         // If the thread is asked to stop, break out of the loop and clean
         // up the file
@@ -275,49 +346,7 @@ void FileReader::fileReaderWorkFunction()
             break;
         }
 
-        // Get and remove the first packet form the queue
-        FilePacket *packet = this->freeFilePackets.front();
-
-        this->freeFilePackets.pop_front();
-
-        freeLock.unlock();
-
-        // Set the firstPacket flag on this packet
-        packet->firstPacket = firstPacket;
-
-        if (firstPacket) {
-            firstPacket = false;
-        }
-
-        // Set the file path string to this file TODO: This may not be necessary after changing to one fileReader per file
-        packet->filePath = this->filePath;
-
-        // Read either the rest of the data, or the size of a packet,
-        // whichever is smaller
-        size_t bytesToRead = std::min(remainingBytes, this->packetSize);
-        size_t bytesRead = 0;
-
-        // Do this in a loop to cover partial reads
-        do {
-            in.read(&packet->data[bytesRead], bytesToRead - bytesRead);
-
-            bytesRead += in.gcount();
-        } while (not in || bytesRead < bytesToRead);
-
-        // Indicate the size of the data in the packet
-        packet->dataSize = bytesRead;
-
-        boost::mutex::scoped_lock allocatedLock(this->allocatedQueueLock);
-
-        // Insert the packet at the end of the allocated
-        // queue
-        this->allocatedFilePackets.push_back(packet);
-
-        this->allocatedPacketAvailable.notify_one();
-
-        // Adjust the number of bytes remaining
-        remainingBytes -= bytesRead;
-    } while (remainingBytes > 0);
+    } while (this->loopingEnabled);
 
     LOG_DEBUG(FileReader, "Closing file: " << this->filePath);
 
@@ -337,7 +366,7 @@ void FileReader::clearQueue(std::deque<FilePacket *> &queue)
     LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
 
     for (std::deque<FilePacket *>::iterator i = queue.begin(); i != queue.end(); i++) {
-        if ((*i)->data != NULL) {
+        if((*i)->data != NULL) {
             delete[] (*i)->data;
         }
 
@@ -378,8 +407,8 @@ void FileReader::initializeQueues()
 
     for (size_t i = 0; i < this->queueSize; ++i) {
         packet = new FilePacket;
-
         packet->data = new char[this->packetSize];
+        packet->dataSize = 0;
 
         this->freeFilePackets.push_back(packet);
     }
