@@ -207,7 +207,7 @@ bool FormattedFileReader::splitNumberAndUnit(const std::string &numberAndUnit,
                                 std::string &number,
                                 std::string &unit)
 {
-    boost::regex splitterRE("(\\d+)([^\\d\\s]*)");
+    boost::regex splitterRE("(\\d*\\.?\\d*)([^\\d\\s]*)");
     boost::smatch results;
 
     if (not boost::regex_search(numberAndUnit.begin(), numberAndUnit.end(),
