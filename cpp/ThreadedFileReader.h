@@ -1,12 +1,12 @@
 /*
- * FileReader.h
+ * ThreadedFileReader.h
  *
  *  Created on: Jun 9, 2015
  *      Author: Patrick
  */
 
-#ifndef FILEREADER_H_
-#define FILEREADER_H_
+#ifndef THREADEDFILEREADER_H_
+#define THREADEDFILEREADER_H_
 
 #include <boost/thread.hpp>
 #include <deque>
@@ -18,21 +18,18 @@ struct FilePacket {
     bool lastPacket;
 };
 
-class FileReader
+class ThreadedFileReader
 {
     ENABLE_LOGGING
     public:
-        FileReader();
-        virtual ~FileReader();
+        ThreadedFileReader();
+        virtual ~ThreadedFileReader();
 
     public:
         // Public functions for controlling the
         // reader
         void start();
         void stop();
-
-        // Request the status of the file reader
-        bool isReady() const;
 
         // Request the next packet
         const FilePacket *getNextPacket();
@@ -79,4 +76,4 @@ class FileReader
         boost::thread *threadHandle;
 };
 
-#endif /* FILEREADER_H_ */
+#endif /* THREADEDFILEREADER_H_ */

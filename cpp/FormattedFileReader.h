@@ -2,16 +2,16 @@
  * FormattedFileReader.h
  *
  *  Created on: Jun 15, 2015
- *      Author: patrick
+ *      Author: Patrick
  */
 
 #ifndef FORMATTEDFILEREADER_H_
 #define FORMATTEDFILEREADER_H_
 
-#include "FileReader.h"
+#include "ThreadedFileReader.h"
 #include <ossie/debug.h>
 
-class FormattedFileReader: public FileReader
+class FormattedFileReader: public ThreadedFileReader
 {
     ENABLE_LOGGING
     public:
@@ -19,7 +19,7 @@ class FormattedFileReader: public FileReader
         virtual ~FormattedFileReader();
 
     public:
-        //Interface functions
+        // Interface functions
         const double& getBandwidth() const;
 
         const double& getCenterFrequency() const;
@@ -30,10 +30,10 @@ class FormattedFileReader: public FileReader
 
         const std::string& getType() const;
 
-    public:
         virtual bool setFilePath(const std::string &newFilePath);
 
     private:
+        // Helper functions
         bool fromFileName(const std::string &fileName, std::string &fileHandle,
                             std::string &cf, std::string &sr, std::string &bw,
                             std::string &type, std::string &cx);
@@ -50,4 +50,4 @@ class FormattedFileReader: public FileReader
         std::string type;
 };
 
-#endif /* REDHAWKFILEREADER_H_ */
+#endif /* FORMATTEDFILEREADER_H_ */

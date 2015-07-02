@@ -1,28 +1,28 @@
 /*
- * FileReader.cpp
+ * ThreadedFileReader.cpp
  *
  *  Created on: Jun 9, 2015
  *      Author: Patrick
  */
 
-#include "FileReader.h"
+#include "ThreadedFileReader.h"
 
 #include <boost/filesystem.hpp>
 #include <iostream>
 
-PREPARE_LOGGING(FileReader)
+PREPARE_LOGGING(ThreadedFileReader)
 
 /*
  * Initialize the variables and fill the queues
  */
-FileReader::FileReader() :
+ThreadedFileReader::ThreadedFileReader() :
     isPlaying(false),
     loopingEnabled(false),
     packetSize(1000),
     queueSize(10),
     threadHandle(NULL)
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     initializeQueues();
 }
@@ -30,9 +30,9 @@ FileReader::FileReader() :
 /*
  * Stop the thread and clear the queues
  */
-FileReader::~FileReader()
+ThreadedFileReader::~ThreadedFileReader()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     stop();
     clearQueues();
@@ -41,22 +41,22 @@ FileReader::~FileReader()
 /*
  * Reset the queues to an initial state and start the thread, if necessary
  */
-void FileReader::start()
+void ThreadedFileReader::start()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     if (this->threadHandle == NULL) {
         resetQueues();
-        this->threadHandle = new boost::thread(&FileReader::fileReaderWorkFunction, this);
+        this->threadHandle = new boost::thread(&ThreadedFileReader::fileReaderWorkFunction, this);
     }
 }
 
 /*
  * Shutdown the thread, if necessary
  */
-void FileReader::stop()
+void ThreadedFileReader::stop()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     if (this->threadHandle != NULL) {
         this->threadHandle->interrupt();
@@ -69,22 +69,12 @@ void FileReader::stop()
 }
 
 /*
- * Indicate whether the thread is able to produce packets
- */
-bool FileReader::isReady() const
-{
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
-
-    return this->isPlaying;
-}
-
-/*
  * Return a pointer to the next allocated packet, if one is available.  If not,
  * wait for one or timeout
  */
-const FilePacket *FileReader::getNextPacket()
+const FilePacket *ThreadedFileReader::getNextPacket()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     boost::mutex::scoped_lock lock(this->allocatedQueueLock);
 
@@ -109,9 +99,9 @@ const FilePacket *FileReader::getNextPacket()
  * prevent memory leaks.  TODO: Think of a better way to do this.  Maybe a
  * callback?
  */
-void FileReader::replacePacket(const FilePacket *packet)
+void ThreadedFileReader::replacePacket(const FilePacket *packet)
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     boost::mutex::scoped_lock lock(this->freeQueueLock);
 
@@ -126,9 +116,9 @@ void FileReader::replacePacket(const FilePacket *packet)
 /*
  * Return the current file path being used
  */
-const std::string& FileReader::getFilePath() const
+const std::string& ThreadedFileReader::getFilePath() const
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     return this->filePath;
 }
@@ -137,16 +127,16 @@ const std::string& FileReader::getFilePath() const
  * If the new file path exists, set the current file path and restart the
  * thread.  Returns a boolean to indicate success or failure
  */
-bool FileReader::setFilePath(const std::string &newFilePath)
+bool ThreadedFileReader::setFilePath(const std::string &newFilePath)
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     if (this->filePath == newFilePath) {
         return true;
     }
 
     if (not boost::filesystem::exists(newFilePath)) {
-        LOG_WARN(FileReader, "Invalid file path: " << newFilePath);
+        LOG_WARN(ThreadedFileReader, "Invalid file path: " << newFilePath);
         return false;
     }
 
@@ -164,25 +154,29 @@ bool FileReader::setFilePath(const std::string &newFilePath)
 /*
  * Get the current looping enabled flag being used
  */
-const bool& FileReader::getLoopingEnabled() const
+const bool& ThreadedFileReader::getLoopingEnabled() const
 {
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
+
     return this->loopingEnabled;
 }
 
 /*
  * Set the looping flag
  */
-void FileReader::setLoopingEnabled(const bool &enable)
+void ThreadedFileReader::setLoopingEnabled(const bool &enable)
 {
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
+
     this->loopingEnabled = enable;
 }
 
 /*
  * Get the current packet size being used
  */
-const size_t& FileReader::getPacketSize() const
+const size_t& ThreadedFileReader::getPacketSize() const
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     return this->packetSize;
 }
@@ -191,9 +185,9 @@ const size_t& FileReader::getPacketSize() const
  * Set the new packet size, stop the thread if necessary, always initialize the
  * queues to reflect the new packet size, and start the thread if necessary
  */
-void FileReader::setPacketSize(const size_t &newPacketSize)
+void ThreadedFileReader::setPacketSize(const size_t &newPacketSize)
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     if (this->packetSize == newPacketSize) {
         return;
@@ -213,9 +207,9 @@ void FileReader::setPacketSize(const size_t &newPacketSize)
 /*
  * Get the current queue size being used
  */
-const size_t& FileReader::getQueueSize() const
+const size_t& ThreadedFileReader::getQueueSize() const
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     return this->queueSize;
 }
@@ -224,9 +218,9 @@ const size_t& FileReader::getQueueSize() const
  * Set the new queue size, stop the thread if necessary, always initialize the
  * queues to reflect the new queue size, and start the thread if necessary
  */
-void FileReader::setQueueSize(const size_t &newQueueSize)
+void ThreadedFileReader::setQueueSize(const size_t &newQueueSize)
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     if (this->queueSize == newQueueSize) {
         return;
@@ -247,19 +241,19 @@ void FileReader::setQueueSize(const size_t &newQueueSize)
  * The read ahead function run by the thread to allow caching of the file data
  * TODO: Break this up into functions
  */
-void FileReader::fileReaderWorkFunction()
+void ThreadedFileReader::fileReaderWorkFunction()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     // Indicate that the file reader is ready to produce packets
     this->isPlaying = true;
 
-    LOG_DEBUG(FileReader, "Opening file: " << this->filePath);
+    LOG_DEBUG(ThreadedFileReader, "Opening file: " << this->filePath);
     std::ifstream in(this->filePath.c_str(), std::ios::in | std::ios::binary);
 
     // An error occurred in opening the file for reading
     if (not in) {
-        LOG_WARN(FileReader, "Unable to open file: " << this->filePath);
+        LOG_WARN(ThreadedFileReader, "Unable to open file: " << this->filePath);
         return;
     }
 
@@ -267,7 +261,7 @@ void FileReader::fileReaderWorkFunction()
         // Get the size of the file and prepare the firstPacket flag
         size_t remainingBytes = boost::filesystem::file_size(this->filePath);
 
-        LOG_DEBUG(FileReader, "File is of size: " << remainingBytes << " bytes");
+        LOG_DEBUG(ThreadedFileReader, "File is of size: " << remainingBytes << " bytes");
 
         in.seekg(0);
 
@@ -293,7 +287,7 @@ void FileReader::fileReaderWorkFunction()
             try {
                 boost::this_thread::interruption_point();
             } catch (boost::thread_interrupted &e) {
-                LOG_DEBUG(FileReader, "Main thread requested interruption from file loop");
+                LOG_DEBUG(ThreadedFileReader, "Main thread requested interruption from file loop");
                 break;
             }
 
@@ -342,18 +336,18 @@ void FileReader::fileReaderWorkFunction()
         try {
             boost::this_thread::interruption_point();
         } catch (boost::thread_interrupted &e) {
-            LOG_DEBUG(FileReader, "Main thread requested interruption from file loop");
+            LOG_DEBUG(ThreadedFileReader, "Main thread requested interruption from file loop");
             break;
         }
 
     } while (this->loopingEnabled);
 
-    LOG_DEBUG(FileReader, "Closing file: " << this->filePath);
+    LOG_DEBUG(ThreadedFileReader, "Closing file: " << this->filePath);
 
     // Close the file
     in.close();
 
-    LOG_DEBUG(FileReader, "Exiting work function");
+    LOG_DEBUG(ThreadedFileReader, "Exiting work function");
     this->isPlaying = false;
 }
 
@@ -361,9 +355,9 @@ void FileReader::fileReaderWorkFunction()
  * Given a queue of FilePacket pointers, delete the packet payload, delete the
  * pointer, and then empty the queue of defunct pointers
  */
-void FileReader::clearQueue(std::deque<FilePacket *> &queue)
+void ThreadedFileReader::clearQueue(std::deque<FilePacket *> &queue)
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     for (std::deque<FilePacket *>::iterator i = queue.begin(); i != queue.end(); i++) {
         if((*i)->data != NULL) {
@@ -382,9 +376,9 @@ void FileReader::clearQueue(std::deque<FilePacket *> &queue)
  * A convenience function to clear both the allocated and free file packet
  * queues
  */
-void FileReader::clearQueues()
+void ThreadedFileReader::clearQueues()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     clearQueue(this->allocatedFilePackets);
     clearQueue(this->freeFilePackets);
@@ -394,9 +388,9 @@ void FileReader::clearQueues()
  * Empty both queues if necessary, then fill the free queue with packets that
  * have a valid payload array
  */
-void FileReader::initializeQueues()
+void ThreadedFileReader::initializeQueues()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     // Clear out any existing packets before initializing
     if (this->allocatedFilePackets.size() != 0 || this->freeFilePackets.size() != 0) {
@@ -418,9 +412,9 @@ void FileReader::initializeQueues()
  * Take any packets that are in the allocated file packet queue and place them
  * into the free queue to prevent the overhead associated with reallocation
  */
-void FileReader::resetQueues()
+void ThreadedFileReader::resetQueues()
 {
-    LOG_TRACE(FileReader, __PRETTY_FUNCTION__);
+    LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
     for (size_t i = this->allocatedFilePackets.size(); i > 0; --i) {
         this->freeFilePackets.push_back(this->allocatedFilePackets.front());

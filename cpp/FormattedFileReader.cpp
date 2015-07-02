@@ -14,6 +14,9 @@
 
 PREPARE_LOGGING(FormattedFileReader)
 
+/*
+ * Initialize the variables.  Will call ThreadedFileReader()
+ */
 FormattedFileReader::FormattedFileReader() :
     bandwidth(-1),
     complex(true),
@@ -21,40 +24,76 @@ FormattedFileReader::FormattedFileReader() :
     sampleRate(-1),
     type("")
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
 }
 
+/*
+ * Will call ~ThreadedFileReader()
+ */
 FormattedFileReader::~FormattedFileReader()
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
 }
 
+/*
+ * Return the current interpreted bandwidth
+ */
 const double& FormattedFileReader::getBandwidth() const
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
     return this->bandwidth;
 }
 
+/*
+ * Return the current interpreted center frequency
+ */
 const double& FormattedFileReader::getCenterFrequency() const
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
     return this->centerFrequency;
 }
 
+/*
+ * Return the current interpreted complex value
+ */
 const bool& FormattedFileReader::getComplex() const
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
     return this->complex;
 }
 
+/*
+ * Return the current interpreted sample rate
+ */
 const double& FormattedFileReader::getSampleRate() const
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
     return this->sampleRate;
 }
 
+/*
+ * Return the current interpreted file type
+ */
 const std::string& FormattedFileReader::getType() const
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
     return this->type;
 }
 
+/*
+ * Set the file path and then attempt to read the center frequency, sample
+ * rate, bandwidth, file type, and complexity from the file name
+ */
 bool FormattedFileReader::setFilePath(const std::string &newFilePath)
 {
-    if (not FileReader::setFilePath(newFilePath)) {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
+    if (not ThreadedFileReader::setFilePath(newFilePath)) {
         LOG_WARN(FormattedFileReader, "Ignoring file name as configuration");
         return false;
     }
@@ -111,14 +150,14 @@ bool FormattedFileReader::setFilePath(const std::string &newFilePath)
 }
 
 /* Attempt to parse the file name as input for configuring the stream data
- * The format is fileHandle_CF_SR<_BW>.TYPE<R>
- * fileHandle: Any handle used to identify the data
- * CF: The center frequency of the data
- * SR: The sample rate of the data
- * BW: The optional bandwidth.  If not included, use optional complex
+ * The format is fileHandle_CF_SR<_BW>.TYPE<R> where:
+ * - fileHandle: Any handle used to identify the data
+ * - CF: The center frequency of the data
+ * - SR: The sample rate of the data
+ * - BW: The optional bandwidth.  If not included, use optional complex
  *      specifier to determine bandwidth
- * TYPE: The data type of the data (B, I, UB) based on MIDAS format
- * R: When present, the data is treated as real, otherwise, complex
+ * - TYPE: The data type of the data (B, I, UB) based on MIDAS format
+ * - R: When present, the data is treated as real, otherwise, complex
  */
 bool FormattedFileReader::fromFileName(const std::string &fileName,
                                     std::string &fileHandle,
@@ -126,6 +165,9 @@ bool FormattedFileReader::fromFileName(const std::string &fileName,
                                     std::string &bw, std::string &type,
                                     std::string &cx)
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
+    // Specify the regular expression used to parse the file name
     boost::regex splitterRE("([^_]+)_([^_]+)_([^_]+)_?(.*)$");
     boost::smatch results;
 
@@ -136,12 +178,17 @@ bool FormattedFileReader::fromFileName(const std::string &fileName,
         return false;
     }
 
+    // If the regular expression search succeeded, these two values are
+    // guaranteed to be present
     fileHandle = std::string(results[1].first, results[1].second);
     cf = std::string(results[2].first, results[2].second);
 
+    // Specify the regular expression used to split on the period
     boost::regex finalSplitterRE("([^\\.]+)\\.(.*)");
     boost::smatch innerResults;
-    std::vector<std::string> strings;
+
+    // Test the fourth value to determine what the contents of these strings
+    // are
     const std::string thirdValue(results[3].first, results[3].second);
     const std::string fourthValue(results[4].first, results[4].second);
 
@@ -169,14 +216,15 @@ bool FormattedFileReader::fromFileName(const std::string &fileName,
         type = std::string(innerResults[2].first, innerResults[2].second);
     }
 
-    if (type.substr(type.size() - 1) == "c" ||
-            type.substr(type.size() - 1) == "C") {
-        cx = "complex";
-
-        type = type.substr(0, type.size() - 1);
-    } else if (type.substr(type.size() - 1) == "r" ||
+    // Check the last character to determine the data complexity
+    if (type.substr(type.size() - 1) == "r" ||
             type.substr(type.size() - 1) == "R") {
         cx = "real";
+
+        type = type.substr(0, type.size() - 1);
+    } else if (type.substr(type.size() - 1) == "c" ||
+            type.substr(type.size() - 1) == "C") {
+        cx = "complex";
 
         type = type.substr(0, type.size() - 1);
     } else {
@@ -186,8 +234,14 @@ bool FormattedFileReader::fromFileName(const std::string &fileName,
     return true;
 }
 
+/*
+ * Given a unit such as MHz, kSps, GHz, etc., return the multiplier associated
+ * with the prefix
+ */
 double FormattedFileReader::multiplierFromUnit(const std::string &unit)
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
     switch (unit[0]) {
         case 'k':
         case 'K':
@@ -203,10 +257,17 @@ double FormattedFileReader::multiplierFromUnit(const std::string &unit)
     return 1;
 }
 
+/*
+ * Given a number and unit such as 10MSps or 99.1MHz, split the number and unit
+ * into two separate strings
+ */
 bool FormattedFileReader::splitNumberAndUnit(const std::string &numberAndUnit,
                                 std::string &number,
                                 std::string &unit)
 {
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
+    // Specify the regular expression used to split the number and unit
     boost::regex splitterRE("(\\d*\\.?\\d*)([^\\d\\s]*)");
     boost::smatch results;
 

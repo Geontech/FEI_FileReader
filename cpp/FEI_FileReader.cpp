@@ -9,6 +9,7 @@
 
 #include "FEI_FileReader.h"
 
+#include <boost/date_time/time_defs.hpp>
 #include <boost/filesystem.hpp>
 
 PREPARE_LOGGING(FEI_FileReader_i)
@@ -149,12 +150,9 @@ int FEI_FileReader_i::serviceFunction()
             double sampleRate = this->frontend_tuner_status[tunerId].
                                         sample_rate;
             double timeDuration = samples / sampleRate;
-
             int seconds = timeDuration;
-
-            // TODO: Figure out a way to determine if time_duration minimum
-            // resolution is microseconds or nanoseconds
-            int fractional = 1e6 * (timeDuration - seconds);
+            int fractional = this->fractionalResolution *
+                    (timeDuration - seconds);
 
             this->fileReaderContainers[tunerId].timeDuration =
                     boost::posix_time::time_duration(0, 0,
@@ -234,6 +232,24 @@ void FEI_FileReader_i::construct()
             &FEI_FileReader_i::loopChanged);
     addPropertyChangeListener("updateAvailableFiles", this,
             &FEI_FileReader_i::updateAvailableFilesChanged);
+
+    // Initialize the fractional resolution value
+    switch (boost::posix_time::time_duration::resolution()) {
+        case boost::date_time::nano:
+            this->fractionalResolution = 1e9;
+            break;
+
+        case boost::date_time::micro:
+            this->fractionalResolution = 1e6;
+            break;
+
+        case boost::date_time::milli:
+            this->fractionalResolution = 1e3;
+            break;
+
+        default:
+            this->fractionalResolution = 1;
+    }
 
     // Initialize the RF Info Packet with very large ranges
     this->rfInfoPkt.rf_flow_id = "FEI_FILEREADER_FLOW_ID_NOT_SET";
@@ -316,6 +332,8 @@ std::string FEI_FileReader_i::getStreamId(size_t tunerId)
 
 void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     for (FileReaderIterator i = this->fileReaderContainers.begin();
             i != this->fileReaderContainers.end(); ++i) {
         i->fileReader->setLoopingEnabled(*newValue);
@@ -606,6 +624,8 @@ void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts,
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     Make sure to set the 'enabled' member of fts to indicate that tuner as enabled
     ************************************************************/
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     fileReaderEnable(tuner_id);
     return;
 }
@@ -617,6 +637,8 @@ void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts,
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     Make sure to reset the 'enabled' member of fts to indicate that tuner as disabled
     ************************************************************/
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     fileReaderDisable(tuner_id);
     return;
 }
@@ -629,6 +651,8 @@ bool FEI_FileReader_i::deviceSetTuning(
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     return true if the tuning succeeded, and false if it failed
     ************************************************************/
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     if (fts.tuner_type == "RX_DIGITIZER") {
         try {
             if (not frontend::validateRequestVsDevice(request, this->rfInfoPkt,
@@ -673,6 +697,8 @@ bool FEI_FileReader_i::deviceDeleteTuning(
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
     return true if the tune deletion succeeded, and false if it failed
     ************************************************************/
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     this->fileReaderContainers[tuner_id].fileReader->stop();
 
     std::string streamId = getStreamId(tuner_id);
@@ -702,6 +728,8 @@ Functions servicing the tuner control port
 *************************************************************/
 std::string FEI_FileReader_i::getTunerType(const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -713,6 +741,8 @@ std::string FEI_FileReader_i::getTunerType(const std::string& allocation_id)
 
 bool FEI_FileReader_i::getTunerDeviceControl(const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -728,6 +758,8 @@ bool FEI_FileReader_i::getTunerDeviceControl(const std::string& allocation_id)
 
 std::string FEI_FileReader_i::getTunerGroupId(const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -740,6 +772,8 @@ std::string FEI_FileReader_i::getTunerGroupId(const std::string& allocation_id)
 std::string FEI_FileReader_i::getTunerRfFlowId(
         const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -752,12 +786,16 @@ std::string FEI_FileReader_i::getTunerRfFlowId(
 void FEI_FileReader_i::setTunerCenterFrequency(
         const std::string& allocation_id, double freq)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("setTunerCenterFrequency not supported");
 }
 
 double FEI_FileReader_i::getTunerCenterFrequency(
         const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -770,11 +808,15 @@ double FEI_FileReader_i::getTunerCenterFrequency(
 void FEI_FileReader_i::setTunerBandwidth(const std::string& allocation_id,
                                             double bw)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("setTunerBandwidth not supported");
 }
 
 double FEI_FileReader_i::getTunerBandwidth(const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -787,28 +829,38 @@ double FEI_FileReader_i::getTunerBandwidth(const std::string& allocation_id)
 void FEI_FileReader_i::setTunerAgcEnable(const std::string& allocation_id,
                                             bool enable)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("setTunerAgcEnable not supported");
 }
 
 bool FEI_FileReader_i::getTunerAgcEnable(const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("getTunerAgcEnable not supported");
 }
 
 void FEI_FileReader_i::setTunerGain(const std::string& allocation_id,
                                         float gain)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("setTunerGain not supported");
 }
 
 float FEI_FileReader_i::getTunerGain(const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("getTunerGain not supported");
 }
 
 void FEI_FileReader_i::setTunerReferenceSource(
         const std::string& allocation_id, long source)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("setTunerReferenceSource " \
                                             "not supported");
 }
@@ -816,6 +868,8 @@ void FEI_FileReader_i::setTunerReferenceSource(
 long FEI_FileReader_i::getTunerReferenceSource(
         const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("getTunerReferenceSource " \
                                             "not supported");
 }
@@ -823,6 +877,8 @@ long FEI_FileReader_i::getTunerReferenceSource(
 void FEI_FileReader_i::setTunerEnable(const std::string& allocation_id,
                                         bool enable)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -840,6 +896,8 @@ void FEI_FileReader_i::setTunerEnable(const std::string& allocation_id,
 
 bool FEI_FileReader_i::getTunerEnable(const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -852,6 +910,8 @@ bool FEI_FileReader_i::getTunerEnable(const std::string& allocation_id)
 void FEI_FileReader_i::setTunerOutputSampleRate(
         const std::string& allocation_id, double sr)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     throw FRONTEND::NotSupportedException("setTunerOutputSampleRate " \
                                             "not supported");
 }
@@ -859,6 +919,8 @@ void FEI_FileReader_i::setTunerOutputSampleRate(
 double FEI_FileReader_i::getTunerOutputSampleRate(
         const std::string& allocation_id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     long idx = getTunerMapping(allocation_id);
 
     if (idx < 0) {
@@ -874,6 +936,8 @@ Functions servicing the RFInfo port(s)
 *************************************************************/
 std::string FEI_FileReader_i::get_rf_flow_id(const std::string& port_name)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     if (port_name == "RFInfo_in") {
         return this->rfInfoPkt.rf_flow_id;
     } else {
@@ -884,6 +948,8 @@ std::string FEI_FileReader_i::get_rf_flow_id(const std::string& port_name)
 void FEI_FileReader_i::set_rf_flow_id(const std::string& port_name,
                                         const std::string& id)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     if (port_name == "RFInfo_in") {
         updateRfFlowId(id);
         this->rfInfoPkt.rf_flow_id = id;
@@ -893,6 +959,8 @@ void FEI_FileReader_i::set_rf_flow_id(const std::string& port_name,
 frontend::RFInfoPkt FEI_FileReader_i::get_rfinfo_pkt(
         const std::string& port_name)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     frontend::RFInfoPkt pkt;
 
     if (port_name == "RFInfo_in") {
@@ -905,6 +973,8 @@ frontend::RFInfoPkt FEI_FileReader_i::get_rfinfo_pkt(
 void FEI_FileReader_i::set_rfinfo_pkt(const std::string& port_name,
                                         const frontend::RFInfoPkt &pkt)
 {
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
     if (port_name == "RFInfo_in") {
         updateRfFlowId(pkt.rf_flow_id);
         this->rfInfoPkt = pkt;
