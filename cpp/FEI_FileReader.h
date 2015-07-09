@@ -16,6 +16,17 @@ struct FileReaderContainer {
     boost::posix_time::time_duration timeDuration;
     BULKIO::PrecisionUTCTime timestamp;
     bool updateSRI;
+
+    std::vector<int8_t> charOutput;
+    std::vector<uint8_t> uCharOutput;
+    std::vector<int16_t> shortOutput;
+    std::vector<uint16_t> uShortOutput;
+    std::vector<int32_t> longOutput;
+    std::vector<uint32_t> uLongOutput;
+    std::vector<float> floatOutput;
+    std::vector<int64_t> longLongOutput;
+    std::vector<uint64_t> uLongLongOutput;
+    std::vector<double> doubleOutput;
 };
 
 /*
@@ -113,11 +124,14 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         std::string getStreamId(size_t tunerId);
 
+        void initializeOutputVectorByType(FileReaderContainer &container);
+
+        void initializeOutputVectors();
+
         void pushPacketByType(
-                const FilePacket * const packet,
+                FileReaderContainer &container,
                 BULKIO::PrecisionUTCTime &T,
-                bool EOS, const std::string &streamID,
-                const std::string &type);
+                bool EOS, const std::string &streamID);
 
         void pushSRIByType(BULKIO::StreamSRI &sri, const std::string &type);
 

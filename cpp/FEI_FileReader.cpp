@@ -187,9 +187,9 @@ int FEI_FileReader_i::serviceFunction()
             this->fileReaderContainers[tunerId].updateSRI = false;
         }
 
-        pushPacketByType(this->fileReaderContainers[tunerId].currentPacket,
-                this->fileReaderContainers[tunerId].timestamp, false, streamId,
-                type);
+        pushPacketByType(this->fileReaderContainers[tunerId],
+                this->fileReaderContainers[tunerId].timestamp, false,
+                streamId);
 
         this->fileReaderContainers[tunerId].
                 fileReader->replacePacket(this->fileReaderContainers[tunerId].
@@ -321,13 +321,20 @@ bool FEI_FileReader_i::deviceDeleteTuning(
 
     this->fileReaderContainers[tuner_id].updateSRI = false;
 
+    if (this->fileReaderContainers[tuner_id].currentPacket != NULL) {
+        this->fileReaderContainers[tuner_id].fileReader->replacePacket(
+                this->fileReaderContainers[tuner_id].currentPacket);
+    }
+
     FilePacket tempPacket;
     tempPacket.dataSize = 0;
+    this->fileReaderContainers[tuner_id].currentPacket = &tempPacket;
 
     BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
 
-    pushPacketByType(&tempPacket, T, true, streamId,
-            this->fileReaderContainers[tuner_id].fileReader->getType());
+    pushPacketByType(this->fileReaderContainers[tuner_id], T, true, streamId);
+
+    this->fileReaderContainers[tuner_id].currentPacket = NULL;
 
     fts.stream_id = "";
 
@@ -489,6 +496,68 @@ std::string FEI_FileReader_i::getStreamId(size_t tunerId)
 }
 
 /*
+ * Given a type, resize the appropriate vector for container
+ */
+void FEI_FileReader_i::initializeOutputVectorByType(
+        FileReaderContainer &container)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    size_t bytes = this->AdvancedProperties.PacketSize;
+    const std::string type = container.fileReader->getType();
+
+    // First, clear out all of the vectors
+    container.charOutput.resize(0);
+    container.uCharOutput.resize(0);
+    container.shortOutput.resize(0);
+    container.uShortOutput.resize(0);
+    container.longOutput.resize(0);
+    container.uLongOutput.resize(0);
+    container.floatOutput.resize(0);
+    container.longLongOutput.resize(0);
+    container.uLongLongOutput.resize(0);
+    container.doubleOutput.resize(0);
+
+    // Now resize only the relevant vector
+    if (type == "B") {
+        container.charOutput.resize(bytes);
+    } else if (type == "UB") {
+        container.uCharOutput.resize(bytes);
+    } else if (type == "I") {
+        container.shortOutput.resize(bytes / sizeFromType(type));
+    } else if (type == "UI") {
+        container.uShortOutput.resize(bytes / sizeFromType(type));
+    } else if (type == "L") {
+        container.longOutput.resize(bytes / sizeFromType(type));
+    } else if (type == "UL") {
+        container.uLongOutput.resize(bytes / sizeFromType(type));
+    } else if (type == "F") {
+        container.floatOutput.resize(bytes / sizeFromType(type));
+    } else if (type == "X") {
+        container.longLongOutput.resize(bytes / sizeFromType(type));
+    } else if (type == "UX") {
+        container.uLongLongOutput.resize(bytes / sizeFromType(type));
+    } else if (type == "D") {
+        container.doubleOutput.resize(bytes / sizeFromType(type));
+    } else {
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
+    }
+}
+
+/*
+ * Initialize the output vector of each file reader by the file type
+ */
+void FEI_FileReader_i::initializeOutputVectors()
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    for (FileReaderIterator i = this->fileReaderContainers.begin();
+            i != this->fileReaderContainers.end(); ++i) {
+        initializeOutputVectorByType(*i);
+    }
+}
+
+/*
  * Set the looping value on all of the file readers
  */
 void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
@@ -502,68 +571,99 @@ void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
 }
 
 /*
- * Given a file packet, push it to the port that matches the file's data type
+ * Given a file reader container, push its packet to the port that matches
+ * the file's data type
  * TODO: May optimize this by having the appropriate vector pre-initialized
  * with the packet size so all that is necessary is a copy
  */
-void FEI_FileReader_i::pushPacketByType(const FilePacket *packet,
+void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T,
         bool EOS,
-        const std::string &streamId,
-        const std::string &type)
+        const std::string &streamId)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
+    const std::string type = container.fileReader->getType();
+
     if (type == "B") {
-        std::vector<int8_t> output((int8_t *) &packet->data[0],
-                (int8_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                container.charOutput.data());
 
-        this->dataChar_out->pushPacket(output, T, EOS, streamId);
+
+        this->dataChar_out->pushPacket(container.charOutput, T, EOS, streamId);
     } else if (type == "UB") {
-        std::vector<uint8_t> output((uint8_t *) &packet->data[0],
-                (uint8_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                container.uCharOutput.data());
 
-        this->dataOctet_out->pushPacket(output, T, EOS, streamId);
+        this->dataOctet_out->pushPacket(container.uCharOutput, T, EOS,
+                streamId);
     } else if (type == "I") {
-        std::vector<int16_t> output((int16_t *) &packet->data[0],
-                (int16_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (int16_t *) container.shortOutput.data());
 
-        this->dataShort_out->pushPacket(output, T, EOS, streamId);
+        this->dataShort_out->pushPacket(container.shortOutput, T, EOS,
+                streamId);
     } else if (type == "UI") {
-        std::vector<uint16_t> output((uint16_t *) &packet->data[0],
-                (uint16_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (uint16_t *) container.shortOutput.data());
 
-        this->dataUshort_out->pushPacket(output, T, EOS, streamId);
+        this->dataUshort_out->pushPacket(container.uShortOutput, T, EOS,
+                streamId);
     } else if (type == "L") {
-        std::vector<int32_t> output((int32_t *) &packet->data[0],
-                (int32_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (int32_t *) container.shortOutput.data());
 
-        this->dataLong_out->pushPacket(output, T, EOS, streamId);
+        this->dataLong_out->pushPacket(container.longOutput, T, EOS, streamId);
     } else if (type == "UL") {
-        std::vector<uint32_t> output((uint32_t *) &packet->data[0],
-                (uint32_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (uint32_t *) container.shortOutput.data());
 
-        this->dataUlong_out->pushPacket(output, T, EOS, streamId);
+        this->dataUlong_out->pushPacket(container.uLongOutput, T, EOS,
+                streamId);
     } else if (type == "F") {
-        std::vector<float> output((float *) &packet->data[0],
-                (float *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (float *) container.shortOutput.data());
 
-        this->dataFloat_out->pushPacket(output, T, EOS, streamId);
+        this->dataFloat_out->pushPacket(container.floatOutput, T, EOS,
+                streamId);
     } else if (type == "X") {
-        std::vector<int64_t> output((int64_t *) &packet->data[0],
-                (int64_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (int64_t *) container.shortOutput.data());
 
-        this->dataLongLong_out->pushPacket(output, T, EOS, streamId);
+        this->dataLongLong_out->pushPacket(container.longLongOutput, T, EOS,
+                streamId);
     } else if (type == "UX") {
-        std::vector<uint64_t> output((uint64_t *) &packet->data[0],
-                (uint64_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (uint64_t *) container.shortOutput.data());
 
-        this->dataUlongLong_out->pushPacket(output, T, EOS, streamId);
+        this->dataUlongLong_out->pushPacket(container.uLongLongOutput, T, EOS,
+                streamId);
     } else if (type == "D") {
-        std::vector<uint64_t> output((uint64_t *) &packet->data[0],
-                (uint64_t *) (&packet->data[0] + packet->dataSize));
+        std::copy(container.currentPacket->data,
+                container.currentPacket->data +
+                container.currentPacket->dataSize,
+                (double *) container.shortOutput.data());
 
-        this->dataUlongLong_out->pushPacket(output, T, EOS, streamId);
+        this->dataDouble_out->pushPacket(container.doubleOutput, T, EOS,
+                streamId);
     } else {
         LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
     }
@@ -603,7 +703,7 @@ void FEI_FileReader_i::pushSRIByType(BULKIO::StreamSRI &sri,
 }
 
 /*
- * Set the packet size for each file reader
+ * Set the packet size for each file reader and reinitialize the output vectors
  */
 void FEI_FileReader_i::setPacketSizes(size_t packetSize)
 {
@@ -613,6 +713,8 @@ void FEI_FileReader_i::setPacketSizes(size_t packetSize)
             i != this->fileReaderContainers.end(); ++i) {
         i->fileReader->setPacketSize(packetSize);
     }
+
+    initializeOutputVectors();
 }
 
 /*
@@ -789,11 +891,14 @@ void FEI_FileReader_i::updateFileReaders()
 
             container.currentPacket = NULL;
             container.fileReader = newFileReader;
+
             this->fileReaderContainers.push_back(container);
         } else {
             delete newFileReader;
         }
     }
+
+    initializeOutputVectors();
 }
 
 /*
