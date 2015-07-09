@@ -96,8 +96,7 @@ const FilePacket *ThreadedFileReader::getNextPacket()
 
 /*
  * Replace a packet acquired through getNextPacket.  This is necessary to
- * prevent memory leaks.  TODO: Think of a better way to do this.  Maybe a
- * callback?
+ * prevent memory leaks.
  */
 void ThreadedFileReader::replacePacket(const FilePacket *packet)
 {
@@ -239,7 +238,6 @@ void ThreadedFileReader::setQueueSize(const size_t &newQueueSize)
 
 /*
  * The read ahead function run by the thread to allow caching of the file data
- * TODO: Break this up into functions
  */
 void ThreadedFileReader::fileReaderWorkFunction()
 {
