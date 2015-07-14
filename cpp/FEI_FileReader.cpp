@@ -598,7 +598,6 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
                 container.currentPacket->dataSize,
                 container.charOutput.data());
 
-
         this->dataChar_out->pushPacket(container.charOutput, T, EOS, streamId);
     } else if (type == "UB") {
         std::copy(container.currentPacket->data,
@@ -612,7 +611,7 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (int16_t *) container.shortOutput.data());
+                (uint8_t *) container.shortOutput.data());
 
         this->dataShort_out->pushPacket(container.shortOutput, T, EOS,
                 streamId);
@@ -620,7 +619,7 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (uint16_t *) container.shortOutput.data());
+                (uint8_t *) container.uShortOutput.data());
 
         this->dataUshort_out->pushPacket(container.uShortOutput, T, EOS,
                 streamId);
@@ -628,14 +627,14 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (int32_t *) container.shortOutput.data());
+                (uint8_t *) container.longOutput.data());
 
         this->dataLong_out->pushPacket(container.longOutput, T, EOS, streamId);
     } else if (type == "UL") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (uint32_t *) container.shortOutput.data());
+                (uint8_t *) container.uLongOutput.data());
 
         this->dataUlong_out->pushPacket(container.uLongOutput, T, EOS,
                 streamId);
@@ -643,7 +642,7 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (float *) container.shortOutput.data());
+                (uint8_t *) container.floatOutput.data());
 
         this->dataFloat_out->pushPacket(container.floatOutput, T, EOS,
                 streamId);
@@ -651,7 +650,7 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (int64_t *) container.shortOutput.data());
+                (uint8_t *) container.longLongOutput.data());
 
         this->dataLongLong_out->pushPacket(container.longLongOutput, T, EOS,
                 streamId);
@@ -659,7 +658,7 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (uint64_t *) container.shortOutput.data());
+                (uint8_t *) container.uLongLongOutput.data());
 
         this->dataUlongLong_out->pushPacket(container.uLongLongOutput, T, EOS,
                 streamId);
@@ -667,7 +666,7 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
-                (double *) container.shortOutput.data());
+                (uint8_t *) container.doubleOutput.data());
 
         this->dataDouble_out->pushPacket(container.doubleOutput, T, EOS,
                 streamId);
