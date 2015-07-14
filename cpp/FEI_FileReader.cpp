@@ -119,6 +119,10 @@ int FEI_FileReader_i::serviceFunction()
                 this->fileReaderContainers[tunerId].
                         fileReader->getType();
 
+        // Lock to protect the current packet
+        boost::mutex::scoped_lock lock(*this->fileReaderContainers[tunerId].
+                lock);
+
         // Check if we're currently waiting for a packet to be ready for
         // throttling
         if (fileReaderContainers[tunerId].currentPacket == NULL) {
@@ -178,7 +182,8 @@ int FEI_FileReader_i::serviceFunction()
 
         // If the update SRI flag is set, push the SRI packet
         if (this->fileReaderContainers[tunerId].updateSRI) {
-            BULKIO::StreamSRI sri = create(streamId, this->frontend_tuner_status[tunerId]);
+            BULKIO::StreamSRI sri = create(streamId,
+                    this->frontend_tuner_status[tunerId]);
             sri.mode = this->fileReaderContainers[tunerId].
                     fileReader->getComplex();
 
@@ -232,7 +237,8 @@ void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts,
 {
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
-    Make sure to set the 'enabled' member of fts to indicate that tuner as enabled
+    Make sure to set the 'enabled' member of fts to indicate that tuner as
+    enabled
     ************************************************************/
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
@@ -245,7 +251,8 @@ void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts,
 {
     /************************************************************
     modify fts, which corresponds to this->frontend_tuner_status[tuner_id]
-    Make sure to reset the 'enabled' member of fts to indicate that tuner as disabled
+    Make sure to reset the 'enabled' member of fts to indicate that tuner as
+    disabled
     ************************************************************/
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
@@ -433,7 +440,9 @@ void FEI_FileReader_i::fileReaderDisable(size_t tunerId)
     this->frontend_tuner_status[tunerId].enabled = false;
 
     if (previouslyEnabled) {
-        //TODO: LOCK THIS
+        boost::mutex::scoped_lock lock(*this->fileReaderContainers[tunerId].
+                lock);
+
         this->fileReaderContainers[tunerId].fileReader->stop();
 
         if (this->fileReaderContainers[tunerId].currentPacket != NULL) {
@@ -573,8 +582,6 @@ void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
 /*
  * Given a file reader container, push its packet to the port that matches
  * the file's data type
- * TODO: May optimize this by having the appropriate vector pre-initialized
- * with the packet size so all that is necessary is a copy
  */
 void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T,
@@ -891,6 +898,7 @@ void FEI_FileReader_i::updateFileReaders()
 
             container.currentPacket = NULL;
             container.fileReader = newFileReader;
+            container.lock = new boost::mutex;
 
             this->fileReaderContainers.push_back(container);
         } else {
@@ -980,7 +988,8 @@ void FEI_FileReader_i::setTunerCenterFrequency(
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    throw FRONTEND::NotSupportedException("setTunerCenterFrequency not supported");
+    throw FRONTEND::NotSupportedException(
+            "setTunerCenterFrequency not supported");
 }
 
 double FEI_FileReader_i::getTunerCenterFrequency(

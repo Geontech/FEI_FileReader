@@ -12,6 +12,7 @@ struct FileReaderContainer {
     const FilePacket *currentPacket;
     FormattedFileReader *fileReader;
     boost::system_time firstSeen;
+    boost::mutex *lock;
     BULKIO::StreamSRI sri;
     boost::posix_time::time_duration timeDuration;
     BULKIO::PrecisionUTCTime timestamp;
