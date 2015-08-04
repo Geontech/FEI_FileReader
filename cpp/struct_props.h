@@ -17,7 +17,7 @@ typedef bulkio::connection_descriptor_struct connection_descriptor_struct;
 struct AdvancedProperties_struct {
     AdvancedProperties_struct ()
     {
-        PacketSize = 1887440;
+        PacketSize = 1887432;
         QueueSize = 25;
     };
 

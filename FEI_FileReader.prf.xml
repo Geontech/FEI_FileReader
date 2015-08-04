@@ -131,7 +131,7 @@ False: Does not need control and can just attach to any currently tasked device 
     <description>Advanced properties for configuring the file reader.</description>
     <simple id="AdvancedProperties::PacketSize" name="PacketSize" type="ulong">
       <description>The number of bytes in each packet used to cache the file data.  The default is about 90% of the default CORBA maximum transfer size.</description>
-      <value>1887440</value>
+      <value>1887432</value>
       <units>bytes</units>
     </simple>
     <simple id="AdvancedProperties::QueueSize" name="QueueSize" type="ulong">
