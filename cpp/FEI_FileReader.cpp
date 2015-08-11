@@ -152,6 +152,12 @@ int FEI_FileReader_i::serviceFunction()
 
             double sampleRate = this->frontend_tuner_status[tunerId].
                                         sample_rate;
+
+            if (this->useMaxOutputRate &&
+                    sampleRate > this->AdvancedProperties.maxOutputRate) {
+                sampleRate = this->AdvancedProperties.maxOutputRate;
+            }
+
             double timeDuration = samples / sampleRate;
             int seconds = timeDuration;
             int fractional = this->fractionalResolution *
@@ -357,12 +363,20 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (oldValue->PacketSize != newValue->PacketSize) {
-        setPacketSizes(newValue->PacketSize);
+    if (oldValue->maxOutputRate != newValue->maxOutputRate) {
+        if (newValue->maxOutputRate == 0) {
+            this->useMaxOutputRate = false;
+        } else {
+            this->useMaxOutputRate = true;
+        }
     }
 
-    if (oldValue->QueueSize != newValue->QueueSize) {
-        setQueueSizes(newValue->QueueSize);
+    if (oldValue->packetSize != newValue->packetSize) {
+        setPacketSizes(newValue->packetSize);
+    }
+
+    if (oldValue->queueSize != newValue->queueSize) {
+        setQueueSizes(newValue->queueSize);
     }
 }
 
@@ -407,6 +421,9 @@ void FEI_FileReader_i::construct()
     this->rfInfoPkt.rf_center_freq = 50e9;
     this->rfInfoPkt.rf_bandwidth = 100e9;
     this->rfInfoPkt.if_center_freq = 0;
+
+    // Initialize the use max output rate to false
+    this->useMaxOutputRate = false;
 }
 
 /*
@@ -512,7 +529,7 @@ void FEI_FileReader_i::initializeOutputVectorByType(
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    size_t bytes = this->AdvancedProperties.PacketSize;
+    size_t bytes = this->AdvancedProperties.packetSize;
     const std::string type = container.fileReader->getType();
 
     // First, clear out all of the vectors
@@ -892,8 +909,8 @@ void FEI_FileReader_i::updateFileReaders()
 
         if (newFileReader->setFilePath(this->availableFiles[id].path)) {
             newFileReader->setLoopingEnabled(this->loop);
-            newFileReader->setPacketSize(this->AdvancedProperties.PacketSize);
-            newFileReader->setQueueSize(this->AdvancedProperties.QueueSize);
+            newFileReader->setPacketSize(this->AdvancedProperties.packetSize);
+            newFileReader->setQueueSize(this->AdvancedProperties.queueSize);
 
             container.currentPacket = NULL;
             container.fileReader = newFileReader;

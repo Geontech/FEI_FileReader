@@ -209,6 +209,7 @@ class FEI_FileReader_i : public FEI_FileReader_base
         uint64_t fractionalResolution;
         bool isPlaying;
         frontend::RFInfoPkt rfInfoPkt;
+        bool useMaxOutputRate;
 };
 
 #endif // FEI_FILEREADER_IMPL_H

@@ -87,7 +87,7 @@
     <simple id="FRONTEND::tuner_allocation::sample_rate" name="sample_rate" type="double">
       <description>Requested sample rate. This can be ignored for such devices as analog tuners</description>
       <value>0.0</value>
-      <units>sps</units>
+      <units>Sps</units>
     </simple>
     <simple id="FRONTEND::tuner_allocation::sample_rate_tolerance" name="sample_rate_tolerance" type="double">
       <description>Allowable Percent above requested sample rate (ie - 100 would be up to twice)</description>
@@ -129,12 +129,17 @@ False: Does not need control and can just attach to any currently tasked device 
   </simple>
   <struct id="AdvancedProperties" mode="readwrite">
     <description>Advanced properties for configuring the file reader.</description>
-    <simple id="AdvancedProperties::PacketSize" name="PacketSize" type="ulong">
+    <simple id="AdvancedProperties::maxOutputRate" name="maxOutputRate" type="double">
+      <description>The maximum rate at which to push samples.  This can differ from the sample rate at which the file was taken to slow down streams which have a sample rate greater than the maximum output rate.</description>
+      <value>0.0</value>
+      <units>Sps</units>
+    </simple>
+    <simple id="AdvancedProperties::packetSize" name="packetSize" type="ulong">
       <description>The number of bytes in each packet used to cache the file data.  The default is about 90% of the default CORBA maximum transfer size.</description>
       <value>1887432</value>
       <units>bytes</units>
     </simple>
-    <simple id="AdvancedProperties::QueueSize" name="QueueSize" type="ulong">
+    <simple id="AdvancedProperties::queueSize" name="queueSize" type="ulong">
       <description>The number of packets to initalize the free data queue with.  These are then populated with the data from the files to provide caching of the file data.</description>
       <value>25</value>
       <units>Packets</units>
