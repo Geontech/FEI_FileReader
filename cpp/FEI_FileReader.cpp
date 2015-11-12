@@ -364,7 +364,7 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
     if (oldValue->maxOutputRate != newValue->maxOutputRate) {
-        if (newValue->maxOutputRate == 0) {
+        if ((long)newValue->maxOutputRate == 0) {
             this->useMaxOutputRate = false;
         } else {
             this->useMaxOutputRate = true;
