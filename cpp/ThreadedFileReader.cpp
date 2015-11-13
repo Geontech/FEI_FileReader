@@ -282,9 +282,7 @@ void ThreadedFileReader::fileReaderWorkFunction()
 
             // If the thread is asked to stop, break out of the loop and clean
             // up the file
-            try {
-                boost::this_thread::interruption_point();
-            } catch (boost::thread_interrupted &e) {
+            if (boost::this_thread::interruption_requested()) {
                 LOG_DEBUG(ThreadedFileReader, "Main thread requested interruption from file loop");
                 break;
             }
@@ -331,9 +329,7 @@ void ThreadedFileReader::fileReaderWorkFunction()
 
         // If the thread is asked to stop, break out of the loop and clean
         // up the file
-        try {
-            boost::this_thread::interruption_point();
-        } catch (boost::thread_interrupted &e) {
+        if (boost::this_thread::interruption_requested()) {
             LOG_DEBUG(ThreadedFileReader, "Main thread requested interruption from file loop");
             break;
         }

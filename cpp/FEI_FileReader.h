@@ -116,6 +116,13 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const bool *oldValue,
                 const bool *newValue);
 
+        // Connection listeners
+        template <typename T>
+        void connectionAdded(const char *connectionId);
+
+        template <typename T>
+        void connectionRemoved(const char *connectionId);
+
         // Miscellaneous helper methods
         void construct();
 
@@ -141,6 +148,8 @@ class FEI_FileReader_i : public FEI_FileReader_base
         void setQueueSizes(size_t queueSize);
 
         size_t sizeFromType(const std::string &type);
+
+        const std::string typeFromTypeInfo(const std::type_info &typeInfo);
 
         void updateAvailableFilesVector();
 
@@ -205,6 +214,7 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const frontend::RFInfoPkt& pkt);
 
     private:
+        std::map<std::string, std::vector<std::string> > streamIdToPortType;
         std::vector<FileReaderContainer> fileReaderContainers;
         uint64_t fractionalResolution;
         bool isPlaying;

@@ -381,8 +381,56 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
 }
 
 /*
- * Initialize property change listeners, set the fractional resolution,
- * and initialize the rfinfo packet
+ * Add a type for the connectionId to the streamIdToPortType map
+ */
+template <typename T>
+void FEI_FileReader_i::connectionAdded(const char *connectionId)
+{
+    std::string portType = typeFromTypeInfo(typeid(T));
+
+    bool found = false;
+
+    std::vector<std::string> &activePortTypes =
+            this->streamIdToPortType[connectionId];
+
+    for (std::vector<std::string>::iterator i = activePortTypes.begin();
+            i != activePortTypes.end(); ++i) {
+        if (*i == portType) {
+            found = true;
+            break;
+        }
+    }
+
+    if (not found) {
+        LOG_INFO(FEI_FileReader_i, "Adding port type " << portType);
+        activePortTypes.push_back(portType);
+    }
+}
+
+/*
+ * Remove a type for the connectionId from the streamIdToPortType map
+ */
+template <typename T>
+void FEI_FileReader_i::connectionRemoved(const char *connectionId)
+{
+    std::string portType = typeFromTypeInfo(typeid(T));
+
+    std::vector<std::string> &activePortTypes =
+            this->streamIdToPortType[connectionId];
+
+    for (std::vector<std::string>::iterator i = activePortTypes.begin();
+            i != activePortTypes.end(); ++i) {
+        if (*i == portType) {
+            activePortTypes.erase(i);
+            LOG_INFO(FEI_FileReader_i, "Removing port type " << portType);
+            break;
+        }
+    }
+}
+
+/*
+ * Initialize property change listeners, set connection listeners,
+ * set the fractional resolution, and initialize the rfinfo packet
  */
 void FEI_FileReader_i::construct()
 {
@@ -397,6 +445,48 @@ void FEI_FileReader_i::construct()
             &FEI_FileReader_i::loopChanged);
     addPropertyChangeListener("updateAvailableFiles", this,
             &FEI_FileReader_i::updateAvailableFilesChanged);
+
+    // Initialize connection listeners
+    this->dataChar_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<int8_t>);
+    this->dataChar_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<int8_t>);
+    this->dataOctet_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<uint8_t>);
+    this->dataOctet_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<uint8_t>);
+    this->dataShort_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<int16_t>);
+    this->dataShort_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<int16_t>);
+    this->dataUshort_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<uint16_t>);
+    this->dataUshort_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<uint16_t>);
+    this->dataLong_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<int32_t>);
+    this->dataLong_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<int32_t>);
+    this->dataUlong_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<uint32_t>);
+    this->dataUlong_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<uint32_t>);
+    this->dataFloat_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<float>);
+    this->dataFloat_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<float>);
+    this->dataLongLong_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<int64_t>);
+    this->dataLongLong_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<int64_t>);
+    this->dataUlongLong_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<uint64_t>);
+    this->dataUlongLong_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<uint64_t>);
+    this->dataDouble_out->setNewConnectListener(this,
+            &FEI_FileReader_i::connectionAdded<double>);
+    this->dataDouble_out->setNewDisconnectListener(this,
+            &FEI_FileReader_i::connectionRemoved<double>);
 
     // Initialize the fractional resolution value
     switch (boost::posix_time::time_duration::resolution()) {
@@ -785,6 +875,38 @@ size_t FEI_FileReader_i::sizeFromType(const std::string &type)
     }
 
     return 0;
+}
+
+/*
+ * Return the string associated with each type
+ */
+const std::string FEI_FileReader_i::typeFromTypeInfo(const std::type_info &typeInfo)
+{
+    if (typeInfo == typeid(int8_t)) {
+        return "B";
+    } else if (typeInfo == typeid(uint8_t)) {
+        return "UB";
+    } else if (typeInfo == typeid(int16_t)) {
+        return "I";
+    } else if (typeInfo == typeid(uint16_t)) {
+        return "UI";
+    } else if (typeInfo == typeid(int32_t)) {
+        return "L";
+    } else if (typeInfo == typeid(uint32_t)) {
+        return "UL";
+    } else if (typeInfo == typeid(float)) {
+        return "F";
+    } else if (typeInfo == typeid(int64_t)) {
+        return "X";
+    } else if (typeInfo == typeid(uint64_t)) {
+        return "UX";
+    } else if (typeInfo == typeid(double)) {
+        return "D";
+    } else {
+        LOG_WARN(FEI_FileReader_i, "Unrecognized data type");
+    }
+
+    return "";
 }
 
 /*
