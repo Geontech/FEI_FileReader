@@ -193,12 +193,12 @@ int FEI_FileReader_i::serviceFunction()
             sri.mode = this->fileReaderContainers[tunerId].
                     fileReader->getComplex();
 
-            pushSRIByType(sri, type);
+            pushSRI(sri);
 
             this->fileReaderContainers[tunerId].updateSRI = false;
         }
 
-        pushPacketByType(this->fileReaderContainers[tunerId],
+        pushPacket(this->fileReaderContainers[tunerId],
                 this->fileReaderContainers[tunerId].timestamp, false,
                 streamId);
 
@@ -329,8 +329,7 @@ bool FEI_FileReader_i::deviceDeleteTuning(
 
     sri.mode = this->fileReaderContainers[tuner_id].fileReader->getComplex();
 
-    pushSRIByType(sri, this->fileReaderContainers[tuner_id].
-            fileReader->getType());
+    pushSRI(sri);
 
     this->fileReaderContainers[tuner_id].updateSRI = false;
 
@@ -345,7 +344,7 @@ bool FEI_FileReader_i::deviceDeleteTuning(
 
     BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
 
-    pushPacketByType(this->fileReaderContainers[tuner_id], T, true, streamId);
+    pushPacket(this->fileReaderContainers[tuner_id], T, true, streamId);
 
     this->fileReaderContainers[tuner_id].currentPacket = NULL;
 
@@ -381,54 +380,6 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
 }
 
 /*
- * Add a type for the connectionId to the streamIdToPortType map
- */
-template <typename T>
-void FEI_FileReader_i::connectionAdded(const char *connectionId)
-{
-    std::string portType = typeFromTypeInfo(typeid(T));
-
-    bool found = false;
-
-    std::vector<std::string> &activePortTypes =
-            this->streamIdToPortType[connectionId];
-
-    for (std::vector<std::string>::iterator i = activePortTypes.begin();
-            i != activePortTypes.end(); ++i) {
-        if (*i == portType) {
-            found = true;
-            break;
-        }
-    }
-
-    if (not found) {
-        LOG_INFO(FEI_FileReader_i, "Adding port type " << portType);
-        activePortTypes.push_back(portType);
-    }
-}
-
-/*
- * Remove a type for the connectionId from the streamIdToPortType map
- */
-template <typename T>
-void FEI_FileReader_i::connectionRemoved(const char *connectionId)
-{
-    std::string portType = typeFromTypeInfo(typeid(T));
-
-    std::vector<std::string> &activePortTypes =
-            this->streamIdToPortType[connectionId];
-
-    for (std::vector<std::string>::iterator i = activePortTypes.begin();
-            i != activePortTypes.end(); ++i) {
-        if (*i == portType) {
-            activePortTypes.erase(i);
-            LOG_INFO(FEI_FileReader_i, "Removing port type " << portType);
-            break;
-        }
-    }
-}
-
-/*
  * Initialize property change listeners, set connection listeners,
  * set the fractional resolution, and initialize the rfinfo packet
  */
@@ -445,48 +396,6 @@ void FEI_FileReader_i::construct()
             &FEI_FileReader_i::loopChanged);
     addPropertyChangeListener("updateAvailableFiles", this,
             &FEI_FileReader_i::updateAvailableFilesChanged);
-
-    // Initialize connection listeners
-    this->dataChar_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<int8_t>);
-    this->dataChar_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<int8_t>);
-    this->dataOctet_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<uint8_t>);
-    this->dataOctet_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<uint8_t>);
-    this->dataShort_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<int16_t>);
-    this->dataShort_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<int16_t>);
-    this->dataUshort_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<uint16_t>);
-    this->dataUshort_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<uint16_t>);
-    this->dataLong_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<int32_t>);
-    this->dataLong_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<int32_t>);
-    this->dataUlong_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<uint32_t>);
-    this->dataUlong_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<uint32_t>);
-    this->dataFloat_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<float>);
-    this->dataFloat_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<float>);
-    this->dataLongLong_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<int64_t>);
-    this->dataLongLong_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<int64_t>);
-    this->dataUlongLong_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<uint64_t>);
-    this->dataUlongLong_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<uint64_t>);
-    this->dataDouble_out->setNewConnectListener(this,
-            &FEI_FileReader_i::connectionAdded<double>);
-    this->dataDouble_out->setNewDisconnectListener(this,
-            &FEI_FileReader_i::connectionRemoved<double>);
 
     // Initialize the fractional resolution value
     switch (boost::posix_time::time_duration::resolution()) {
@@ -514,6 +423,222 @@ void FEI_FileReader_i::construct()
 
     // Initialize the use max output rate to false
     this->useMaxOutputRate = false;
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<int8_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataChar_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<uint8_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataOctet_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<int16_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataShort_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<uint16_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataUshort_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<int32_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataLong_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<uint32_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataUlong_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<float> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataFloat_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<int64_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataLongLong_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+            streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<uint64_t> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataUlongLong_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
+}
+
+template <>
+void FEI_FileReader_i::convertAndPushToAll(std::vector<double> &data,
+        BULKIO::PrecisionUTCTime &T, bool EOS,
+        const std::string &streamID)
+{
+    this->dataDouble_out->pushPacket(data, T, EOS, streamID);
+
+    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
+    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
+    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
+    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
+                streamID);
+    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
+                streamID);
 }
 
 /*
@@ -578,8 +703,7 @@ void FEI_FileReader_i::fileReaderEnable(size_t tunerId)
         BULKIO::StreamSRI sri = create(streamId,
                 this->frontend_tuner_status[tunerId]);
 
-        pushSRIByType(sri, this->fileReaderContainers[tunerId].
-                fileReader->getType());
+        pushSRI(sri);
 
         this->fileReaderContainers[tunerId].fileReader->start();
     }
@@ -690,10 +814,10 @@ void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
  * Given a file reader container, push its packet to the port that matches
  * the file's data type
  */
-void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
+void FEI_FileReader_i::pushPacket(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T,
         bool EOS,
-        const std::string &streamId)
+        const std::string &streamID)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
@@ -705,78 +829,70 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
                 container.currentPacket->dataSize,
                 container.charOutput.data());
 
-        this->dataChar_out->pushPacket(container.charOutput, T, EOS, streamId);
+        convertAndPushToAll(container.charOutput, T, EOS, streamID);
     } else if (type == "UB") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 container.uCharOutput.data());
 
-        this->dataOctet_out->pushPacket(container.uCharOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.uCharOutput, T, EOS, streamID);
     } else if (type == "I") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.shortOutput.data());
 
-        this->dataShort_out->pushPacket(container.shortOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.shortOutput, T, EOS, streamID);
     } else if (type == "UI") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.uShortOutput.data());
 
-        this->dataUshort_out->pushPacket(container.uShortOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.uShortOutput, T, EOS, streamID);
     } else if (type == "L") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.longOutput.data());
 
-        this->dataLong_out->pushPacket(container.longOutput, T, EOS, streamId);
+        convertAndPushToAll(container.longOutput, T, EOS, streamID);
     } else if (type == "UL") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.uLongOutput.data());
 
-        this->dataUlong_out->pushPacket(container.uLongOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.uLongOutput, T, EOS, streamID);
     } else if (type == "F") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.floatOutput.data());
 
-        this->dataFloat_out->pushPacket(container.floatOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.floatOutput, T, EOS, streamID);
     } else if (type == "X") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.longLongOutput.data());
 
-        this->dataLongLong_out->pushPacket(container.longLongOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.longLongOutput, T, EOS, streamID);
     } else if (type == "UX") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.uLongLongOutput.data());
 
-        this->dataUlongLong_out->pushPacket(container.uLongLongOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.uLongLongOutput, T, EOS, streamID);
     } else if (type == "D") {
         std::copy(container.currentPacket->data,
                 container.currentPacket->data +
                 container.currentPacket->dataSize,
                 (uint8_t *) container.doubleOutput.data());
 
-        this->dataDouble_out->pushPacket(container.doubleOutput, T, EOS,
-                streamId);
+        convertAndPushToAll(container.doubleOutput, T, EOS, streamID);
     } else {
         LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
     }
@@ -785,12 +901,22 @@ void FEI_FileReader_i::pushPacketByType(FileReaderContainer &container,
 /*
  * Given an SRI object, push it to the port that matches the file's data type
  */
-void FEI_FileReader_i::pushSRIByType(BULKIO::StreamSRI &sri,
-        const std::string &type)
+void FEI_FileReader_i::pushSRI(BULKIO::StreamSRI &sri)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (type == "B") {
+    this->dataChar_out->pushSRI(sri);
+    this->dataOctet_out->pushSRI(sri);
+    this->dataShort_out->pushSRI(sri);
+    this->dataUshort_out->pushSRI(sri);
+    this->dataLong_out->pushSRI(sri);
+    this->dataUlong_out->pushSRI(sri);
+    this->dataFloat_out->pushSRI(sri);
+    this->dataLongLong_out->pushSRI(sri);
+    this->dataUlongLong_out->pushSRI(sri);
+    this->dataDouble_out->pushSRI(sri);
+
+    /*if (type == "B") {
         this->dataChar_out->pushSRI(sri);
     } else if (type == "UB") {
         this->dataOctet_out->pushSRI(sri);
@@ -812,7 +938,7 @@ void FEI_FileReader_i::pushSRIByType(BULKIO::StreamSRI &sri,
         this->dataDouble_out->pushSRI(sri);
     } else {
         LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
-    }
+    }*/
 }
 
 /*

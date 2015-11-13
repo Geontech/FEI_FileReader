@@ -126,6 +126,16 @@ class FEI_FileReader_i : public FEI_FileReader_base
         // Miscellaneous helper methods
         void construct();
 
+        template <typename OUT_TYPE, typename PORT_TYPE, typename IN_TYPE>
+        void convertAndPushPacket(PORT_TYPE *port, std::vector<IN_TYPE> &data,
+                BULKIO::PrecisionUTCTime &T, bool EOS,
+                const std::string &streamID);
+
+        template <typename IN_TYPE>
+        void convertAndPushToAll(std::vector<IN_TYPE> &data,
+                BULKIO::PrecisionUTCTime &T, bool EOS,
+                const std::string &streamID);
+
         void fileReaderDisable(size_t tunerId);
 
         void fileReaderEnable(size_t tunerId);
@@ -136,12 +146,12 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         void initializeOutputVectors();
 
-        void pushPacketByType(
+        void pushPacket(
                 FileReaderContainer &container,
-                BULKIO::PrecisionUTCTime &T,
-                bool EOS, const std::string &streamID);
+                BULKIO::PrecisionUTCTime &T, bool EOS,
+                const std::string &streamID);
 
-        void pushSRIByType(BULKIO::StreamSRI &sri, const std::string &type);
+        void pushSRI(BULKIO::StreamSRI &sri);
 
         void setPacketSizes(size_t packetSize);
 
@@ -221,5 +231,7 @@ class FEI_FileReader_i : public FEI_FileReader_base
         frontend::RFInfoPkt rfInfoPkt;
         bool useMaxOutputRate;
 };
+
+#include "FEI_FileReader_template.h"
 
 #endif // FEI_FILEREADER_IMPL_H
