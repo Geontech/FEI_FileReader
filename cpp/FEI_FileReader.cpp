@@ -425,6 +425,10 @@ void FEI_FileReader_i::construct()
     this->useMaxOutputRate = false;
 }
 
+/*
+ * Templated functions to only convert a packet if necessary and then push to
+ * the ports
+ */
 template <>
 void FEI_FileReader_i::convertAndPushToAll(std::vector<int8_t> &data,
         BULKIO::PrecisionUTCTime &T, bool EOS,
@@ -811,8 +815,8 @@ void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
 }
 
 /*
- * Given a file reader container, push its packet to the port that matches
- * the file's data type
+ * Given a file reader container, convert and push packets to active
+ * ports
  */
 void FEI_FileReader_i::pushPacket(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T,
@@ -899,7 +903,7 @@ void FEI_FileReader_i::pushPacket(FileReaderContainer &container,
 }
 
 /*
- * Given an SRI object, push it to the port that matches the file's data type
+ * Given an SRI object, push it to all ports
  */
 void FEI_FileReader_i::pushSRI(BULKIO::StreamSRI &sri)
 {
@@ -915,30 +919,6 @@ void FEI_FileReader_i::pushSRI(BULKIO::StreamSRI &sri)
     this->dataLongLong_out->pushSRI(sri);
     this->dataUlongLong_out->pushSRI(sri);
     this->dataDouble_out->pushSRI(sri);
-
-    /*if (type == "B") {
-        this->dataChar_out->pushSRI(sri);
-    } else if (type == "UB") {
-        this->dataOctet_out->pushSRI(sri);
-    } else if (type == "I") {
-        this->dataShort_out->pushSRI(sri);
-    } else if (type == "UI") {
-        this->dataUshort_out->pushSRI(sri);
-    } else if (type == "L") {
-        this->dataLong_out->pushSRI(sri);
-    } else if (type == "UL") {
-        this->dataUlong_out->pushSRI(sri);
-    } else if (type == "F") {
-        this->dataFloat_out->pushSRI(sri);
-    } else if (type == "X") {
-        this->dataLongLong_out->pushSRI(sri);
-    } else if (type == "UX") {
-        this->dataUlongLong_out->pushSRI(sri);
-    } else if (type == "D") {
-        this->dataDouble_out->pushSRI(sri);
-    } else {
-        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
-    }*/
 }
 
 /*
