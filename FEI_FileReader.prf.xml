@@ -4,15 +4,15 @@
   <simple id="DCE:cdc5ee18-7ceb-4ae6-bf4c-31f983179b4d" mode="readonly" name="device_kind" type="string">
     <description>This specifies the device kind</description>
     <value>FRONTEND::TUNER</value>
-    <kind kindtype="configure"/>
     <kind kindtype="allocation"/>
+    <kind kindtype="property"/>
     <action type="eq"/>
   </simple>
   <simple id="DCE:0f99b2e4-9903-4631-9846-ff349d18ecfb" mode="readonly" name="device_model" type="string">
     <description> This specifies the specific device</description>
     <value>FILE</value>
-    <kind kindtype="configure"/>
     <kind kindtype="allocation"/>
+    <kind kindtype="property"/>
     <action type="eq"/>
   </simple>
   <structsequence id="FRONTEND::tuner_status" mode="readonly" name="frontend_tuner_status">
@@ -49,7 +49,7 @@
         <description>Stream ID associated with tuner/allocation</description>
       </simple>
     </struct>
-    <configurationkind kindtype="configure"/>
+    <configurationkind kindtype="property"/>
   </structsequence>
   <struct id="FRONTEND::listener_allocation" name="frontend_listener_allocation">
     <description>Allocates a listener (subscriber) based off a previous allocation </description>
@@ -109,22 +109,16 @@ False: Does not need control and can just attach to any currently tasked device 
   </struct>
   <structsequence id="connectionTable" mode="readonly">
     <struct id="connectionTable::connection_descriptor" name="connection_descriptor">
-      <simple id="connectionTable::connection_id" name="connection_id" type="string">
-        <kind kindtype="configure"/>
-      </simple>
-      <simple id="connectionTable::stream_id" name="stream_id" type="string">
-        <kind kindtype="configure"/>
-      </simple>
-      <simple id="connectionTable::port_name" name="port_name" type="string">
-        <kind kindtype="configure"/>
-      </simple>
+      <simple id="connectionTable::connection_id" name="connection_id" type="string"/>
+      <simple id="connectionTable::stream_id" name="stream_id" type="string"/>
+      <simple id="connectionTable::port_name" name="port_name" type="string"/>
     </struct>
-    <configurationkind kindtype="configure"/>
+    <configurationkind kindtype="property"/>
   </structsequence>
   <simple id="filePath" mode="readwrite" type="string">
     <description>The path to the file or directory to be read.  Each file will be treated as a separate tuner to allocate.</description>
     <value></value>
-    <kind kindtype="configure"/>
+    <kind kindtype="property"/>
     <action type="external"/>
   </simple>
   <struct id="AdvancedProperties" mode="readwrite">
@@ -144,7 +138,7 @@ False: Does not need control and can just attach to any currently tasked device 
       <value>25</value>
       <units>Packets</units>
     </simple>
-    <configurationkind kindtype="configure"/>
+    <configurationkind kindtype="property"/>
   </struct>
   <structsequence id="availableFiles" mode="readonly" name="availableFiles">
     <description>Lists all files found at the path specified in the filePath property.</description>
@@ -159,18 +153,18 @@ False: Does not need control and can just attach to any currently tasked device 
         <value>0</value>
       </simple>
     </struct>
-    <configurationkind kindtype="configure"/>
+    <configurationkind kindtype="property"/>
   </structsequence>
   <simple id="updateAvailableFiles" mode="readwrite" name="updateAvailableFiles" type="boolean">
     <description>When set to true, the available_files property will be updated with all available files found at the path specified by the filePath property.</description>
     <value>False</value>
-    <kind kindtype="configure"/>
+    <kind kindtype="property"/>
     <action type="external"/>
   </simple>
   <simple id="loop" mode="readwrite" type="boolean">
     <description>Allow looping for each file.</description>
     <value>false</value>
-    <kind kindtype="configure"/>
+    <kind kindtype="property"/>
     <action type="external"/>
   </simple>
 </properties>
