@@ -255,13 +255,20 @@ void ThreadedFileReader::fileReaderWorkFunction()
         return;
     }
 
-    do {
-        // Get the size of the file and prepare the firstPacket flag
-        size_t remainingBytes = boost::filesystem::file_size(this->filePath);
+    // Get the size of the file
+    const size_t fileSize = boost::filesystem::file_size(this->filePath);
 
-        LOG_DEBUG(ThreadedFileReader, "File is of size: " << remainingBytes << " bytes");
+    LOG_DEBUG(ThreadedFileReader, "File is of size: " << fileSize << " bytes");
+
+    do {
+        // Initialize the number of remaining bytes and seek the beginning of
+        // the file
+        size_t remainingBytes = fileSize;
 
         in.seekg(0);
+
+        LOG_DEBUG(ThreadedFileReader, "Beginning to read file " <<
+                this->filePath);
 
         do {
             boost::mutex::scoped_lock freeLock(this->freeQueueLock);
@@ -327,6 +334,9 @@ void ThreadedFileReader::fileReaderWorkFunction()
             remainingBytes -= bytesRead;
         } while (remainingBytes > 0);
 
+        LOG_DEBUG(ThreadedFileReader, "Finished reading file " <<
+                this->filePath);
+
         // If the thread is asked to stop, break out of the loop and clean
         // up the file
         if (boost::this_thread::interruption_requested()) {
@@ -391,6 +401,8 @@ void ThreadedFileReader::initializeQueues()
         clearQueues();
     }
 
+    this->freeFilePackets.resize(this->queueSize);
+
     FilePacket *packet = NULL;
 
     for (size_t i = 0; i < this->queueSize; ++i) {
@@ -398,7 +410,7 @@ void ThreadedFileReader::initializeQueues()
         packet->data = new char[this->packetSize];
         packet->dataSize = 0;
 
-        this->freeFilePackets.push_back(packet);
+        this->freeFilePackets[i] = packet;
     }
 }
 
@@ -410,7 +422,7 @@ void ThreadedFileReader::resetQueues()
 {
     LOG_TRACE(ThreadedFileReader, __PRETTY_FUNCTION__);
 
-    for (size_t i = this->allocatedFilePackets.size(); i > 0; --i) {
+    while (not this->allocatedFilePackets.empty()) {
         this->freeFilePackets.push_back(this->allocatedFilePackets.front());
         this->allocatedFilePackets.pop_front();
     }

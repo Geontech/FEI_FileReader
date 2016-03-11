@@ -22,7 +22,7 @@ FormattedFileReader::FormattedFileReader() :
     complex(true),
     centerFrequency(-1),
     sampleRate(-1),
-    type("")
+    type(FORMAT_UNKNOWN)
 {
     LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
 }
@@ -33,56 +33,6 @@ FormattedFileReader::FormattedFileReader() :
 FormattedFileReader::~FormattedFileReader()
 {
     LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
-}
-
-/*
- * Return the current interpreted bandwidth
- */
-const double& FormattedFileReader::getBandwidth() const
-{
-    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
-
-    return this->bandwidth;
-}
-
-/*
- * Return the current interpreted center frequency
- */
-const double& FormattedFileReader::getCenterFrequency() const
-{
-    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
-
-    return this->centerFrequency;
-}
-
-/*
- * Return the current interpreted complex value
- */
-const bool& FormattedFileReader::getComplex() const
-{
-    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
-
-    return this->complex;
-}
-
-/*
- * Return the current interpreted sample rate
- */
-const double& FormattedFileReader::getSampleRate() const
-{
-    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
-
-    return this->sampleRate;
-}
-
-/*
- * Return the current interpreted file type
- */
-const std::string& FormattedFileReader::getType() const
-{
-    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
-
-    return this->type;
 }
 
 /*
@@ -144,7 +94,30 @@ bool FormattedFileReader::setFilePath(const std::string &newFilePath)
     }
 
     this->complex = (cx == "complex");
-    this->type = type;
+
+    if (type == "B") {
+        this->type = CHAR;
+    } else if (type == "UB") {
+        this->type = OCTET;
+    } else if (type == "I") {
+        this->type = SHORT;
+    } else if (type == "UI") {
+        this->type = USHORT;
+    } else if (type == "L") {
+        this->type = LONG;
+    } else if (type == "UL") {
+        this->type = ULONG;
+    } else if (type == "F") {
+        this->type = FLOAT;
+    } else if (type == "X") {
+        this->type = LONGLONG;
+    } else if (type == "UX") {
+        this->type = ULONGLONG;
+    } else if (type == "D") {
+        this->type = DOUBLE;
+    } else {
+        this->type = FORMAT_UNKNOWN;
+    }
 
     return true;
 }
