@@ -65,7 +65,7 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
 }
 
 /*
- * Destruct the device by cleaning up the file reader pointers
+ * Destroy the device by cleaning up the file reader pointers
  */
 FEI_FileReader_i::~FEI_FileReader_i()
 {
@@ -99,13 +99,18 @@ int FEI_FileReader_i::serviceFunction()
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    bool rx_data = false;
+    // A variable for keeping track of the smallest time duration so far and
+    // indicating the correct index to use for the next push
+    boost::posix_time::time_duration
+        smallestDuration(boost::posix_time::hours(1));
+    int smallestTimeDurationIndex = -1;
 
     for (size_t tunerId = 0; tunerId < this->fileReaderContainers.size();
             ++tunerId) {
         // Check to see if the channel is allocated before requesting a data
         // packet
-        if (getControlAllocationId(tunerId).empty()) {
+        if (this->tuner_allocation_ids[tunerId].control_allocation_id.
+                empty()) {
             continue;
         }
 
@@ -114,39 +119,31 @@ int FEI_FileReader_i::serviceFunction()
             continue;
         }
 
-        // Get the type of data the file reader is pulling in
-        const std::string type =
-                this->fileReaderContainers[tunerId].
-                        fileReader->getType();
+        FileReaderContainer &container = this->fileReaderContainers[tunerId];
 
         // Lock to protect the current packet
-        boost::mutex::scoped_lock lock(*this->fileReaderContainers[tunerId].
-                lock);
+        boost::mutex::scoped_lock lock(*container.lock);
 
         // Check if we're currently waiting for a packet to be ready for
         // throttling
-        if (fileReaderContainers[tunerId].currentPacket == NULL) {
-            this->fileReaderContainers[tunerId].currentPacket =
-                    this->fileReaderContainers[tunerId].
-                            fileReader->getNextPacket();
+        if (not container.waiting) {
+            container.currentPacket = container.fileReader->getNextPacket();
 
-            if (this->fileReaderContainers[tunerId].currentPacket == NULL) {
+            if (container.currentPacket == NULL) {
                 continue;
             }
 
-            this->fileReaderContainers[tunerId].firstSeen =
-                    boost::get_system_time();
-            this->fileReaderContainers[tunerId].timestamp =
-                    bulkio::time::utils::now();
+            // Get the current time for keeping track of when to push
+            container.firstSeen = boost::get_system_time();
+            container.timestamp = bulkio::time::utils::now();
 
             // Calculate the time duration for this packet based on the
             // number of samples, the requested sample rate, and the complexity
-            size_t bytes = this->fileReaderContainers[tunerId].
-                                    currentPacket->dataSize;
+            size_t bytes = container.currentPacket->dataSize;
 
-            size_t samples = bytes / sizeFromType(type);
+            size_t samples = bytes / container.typeSize;
 
-            if (this->fileReaderContainers[tunerId].fileReader->getComplex()) {
+            if (container.fileReader->getComplex()) {
                 samples /= 2;
             }
 
@@ -163,57 +160,73 @@ int FEI_FileReader_i::serviceFunction()
             int fractional = this->fractionalResolution *
                     (timeDuration - seconds);
 
-            this->fileReaderContainers[tunerId].timeDuration =
-                    boost::posix_time::time_duration(0, 0,
-                            seconds, fractional);
+            container.timeDuration = boost::posix_time::time_duration(0, 0,
+                    seconds, fractional);
 
-            // Update the delay, if necessary
-            if ((this->fileReaderContainers[tunerId].
-                    timeDuration.total_nanoseconds() / 1.0e9) < getThreadDelay()) {
-                setThreadDelay((this->fileReaderContainers[tunerId].
-                        timeDuration.total_nanoseconds() / 1.0e9) / 10);
-            }
+            // Convert the packet now
+            convertAndCopy(container);
+
+            // Replace the packet
+            container.fileReader->replacePacket(container.currentPacket);
+
+            container.currentPacket = NULL;
+
+            container.waiting = true;
         }
 
-        // Check if the amount of time has elapsed for this packet
-        if ((boost::get_system_time() -
-                    this->fileReaderContainers[tunerId].firstSeen) <
-                    this->fileReaderContainers[tunerId].timeDuration) {
-            continue;
+        // Check if this is the smallest duration of the available readers
+        if ((container.timeDuration - (boost::get_system_time() -
+                container.firstSeen) - container.pushDelay) <
+                    smallestDuration) {
+            // The duration is calculated based on the calculated duration,
+            // taking into account how long it has taken to reach this point
+            // and how long it takes to perform the pushPacket
+            smallestDuration = container.timeDuration -
+                    (boost::get_system_time() - container.firstSeen) -
+                    container.pushDelay;
+            smallestTimeDurationIndex = tunerId;
         }
+    }
 
-        rx_data = true;
+    // In this case, wait the time duration and then push
+    if (smallestTimeDurationIndex != -1) {
+        FileReaderContainer &containerToPush =
+                this->fileReaderContainers[smallestTimeDurationIndex];
 
-        std::string streamId = getStreamId(tunerId);
+        boost::posix_time::time_duration timeToWait =
+                containerToPush.timeDuration -
+                (boost::get_system_time() - containerToPush.firstSeen) -
+                containerToPush.pushDelay;
+
+        boost::this_thread::sleep(timeToWait);
+
+        std::string streamId = getStreamId(smallestTimeDurationIndex);
 
         // If the update SRI flag is set, push the SRI packet
-        if (this->fileReaderContainers[tunerId].updateSRI) {
+        if (containerToPush.updateSRI) {
             BULKIO::StreamSRI sri = create(streamId,
-                    this->frontend_tuner_status[tunerId]);
-            sri.mode = this->fileReaderContainers[tunerId].
-                    fileReader->getComplex();
+                    this->frontend_tuner_status[smallestTimeDurationIndex]);
+            sri.mode = containerToPush.fileReader->getComplex();
 
             pushSRI(sri);
 
-            this->fileReaderContainers[tunerId].updateSRI = false;
+            containerToPush.updateSRI = false;
         }
 
-        pushPacket(this->fileReaderContainers[tunerId],
-                this->fileReaderContainers[tunerId].timestamp, false,
+        // Take note of the current time to calculate the pushPacket delay
+        boost::system_time prePushTime = boost::get_system_time();
+
+        pushPacket(containerToPush, containerToPush.timestamp, false,
                 streamId);
 
-        this->fileReaderContainers[tunerId].
-                fileReader->replacePacket(this->fileReaderContainers[tunerId].
-                        currentPacket);
+        containerToPush.pushDelay = (boost::get_system_time() - prePushTime);
 
-        this->fileReaderContainers[tunerId].currentPacket = NULL;
-    }
+        containerToPush.waiting = false;
 
-    if (rx_data) {
         return NORMAL;
+    } else {
+        return NOOP;
     }
-
-    return NOOP;
 }
 
 /*
@@ -321,32 +334,39 @@ bool FEI_FileReader_i::deviceDeleteTuning(
     ************************************************************/
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    this->fileReaderContainers[tuner_id].fileReader->stop();
+    if (tuner_id >= this->fileReaderContainers.size()) {
+        LOG_ERROR(FEI_FileReader_i, "ERR: INVALID TUNER ID");
+        return false;
+    }
+
+    FileReaderContainer &container = this->fileReaderContainers[tuner_id];
+
+    container.fileReader->stop();
 
     std::string streamId = getStreamId(tuner_id);
     BULKIO::StreamSRI sri = create(streamId,
                                     this->frontend_tuner_status[tuner_id]);
 
-    sri.mode = this->fileReaderContainers[tuner_id].fileReader->getComplex();
+    sri.mode = container.fileReader->getComplex();
 
     pushSRI(sri);
 
-    this->fileReaderContainers[tuner_id].updateSRI = false;
+    container.updateSRI = false;
 
-    if (this->fileReaderContainers[tuner_id].currentPacket != NULL) {
-        this->fileReaderContainers[tuner_id].fileReader->replacePacket(
-                this->fileReaderContainers[tuner_id].currentPacket);
+    if (container.currentPacket != NULL) {
+        container.fileReader->replacePacket(container.currentPacket);
+        container.waiting = false;
     }
 
     FilePacket tempPacket;
     tempPacket.dataSize = 0;
-    this->fileReaderContainers[tuner_id].currentPacket = &tempPacket;
+    container.currentPacket = &tempPacket;
 
     BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
 
-    pushPacket(this->fileReaderContainers[tuner_id], T, true, streamId);
+    pushPacket(container, T, true, streamId);
 
-    this->fileReaderContainers[tuner_id].currentPacket = NULL;
+    container.currentPacket = NULL;
 
     fts.stream_id = "";
 
@@ -380,8 +400,8 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
 }
 
 /*
- * Initialize property change listeners, set connection listeners,
- * set the fractional resolution, and initialize the rfinfo packet
+ * Initialize property change listeners, set the fractional resolution,
+ * and initialize the rfinfo packet
  */
 void FEI_FileReader_i::construct()
 {
@@ -426,223 +446,69 @@ void FEI_FileReader_i::construct()
 }
 
 /*
- * Templated functions to only convert a packet if necessary and then push to
- * the ports
+ * Given a container, use its type info to perform a copy to the correct vector
+ * and then call a templated conversion function to conditionally copy to other
+ * vector types based on the state of the associated port
  */
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<int8_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
+void FEI_FileReader_i::convertAndCopy(FileReaderContainer &container)
 {
-    this->dataChar_out->pushPacket(data, T, EOS, streamID);
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
+    const FormattedFileType type = container.fileReader->getType();
 
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<uint8_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataOctet_out->pushPacket(data, T, EOS, streamID);
+    if (type == CHAR) {
+        memcpy(container.charOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
+        convertAndCopyToAll(container, container.charOutput);
+    } else if (type == OCTET) {
+        memcpy(container.uCharOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<int16_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataShort_out->pushPacket(data, T, EOS, streamID);
+        convertAndCopyToAll(container, container.uCharOutput);
+    } else if (type == SHORT) {
+        memcpy(container.shortOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
+        convertAndCopyToAll(container, container.shortOutput);
+    } else if (type == USHORT) {
+        memcpy(container.uShortOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<uint16_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataUshort_out->pushPacket(data, T, EOS, streamID);
+        convertAndCopyToAll(container, container.uShortOutput);
+    } else if (type == LONG) {
+        memcpy(container.longOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
+        convertAndCopyToAll(container, container.longOutput);
+    } else if (type == ULONG) {
+        memcpy(container.uLongOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<int32_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataLong_out->pushPacket(data, T, EOS, streamID);
+        convertAndCopyToAll(container, container.uLongOutput);
+    } else if (type == FLOAT) {
+        memcpy(container.floatOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
+        convertAndCopyToAll(container, container.floatOutput);
+    } else if (type == LONGLONG) {
+        memcpy(container.longLongOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<uint32_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataUlong_out->pushPacket(data, T, EOS, streamID);
+        convertAndCopyToAll(container, container.longLongOutput);
+    } else if (type == ULONGLONG) {
+        memcpy(container.uLongLongOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
+        convertAndCopyToAll(container, container.uLongLongOutput);
+    } else if (type == DOUBLE) {
+        memcpy(container.doubleOutput.data(), container.currentPacket->data,
+                container.currentPacket->dataSize);
 
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<float> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataFloat_out->pushPacket(data, T, EOS, streamID);
-
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
-
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<int64_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataLongLong_out->pushPacket(data, T, EOS, streamID);
-
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-            streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
-
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<uint64_t> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataUlongLong_out->pushPacket(data, T, EOS, streamID);
-
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<double>(this->dataDouble_out, data, T, EOS, streamID);
-}
-
-template <>
-void FEI_FileReader_i::convertAndPushToAll(std::vector<double> &data,
-        BULKIO::PrecisionUTCTime &T, bool EOS,
-        const std::string &streamID)
-{
-    this->dataDouble_out->pushPacket(data, T, EOS, streamID);
-
-    convertAndPushPacket<int8_t>(this->dataChar_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint8_t>(this->dataOctet_out, data, T, EOS, streamID);
-    convertAndPushPacket<int16_t>(this->dataShort_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint16_t>(this->dataUshort_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<int32_t>(this->dataLong_out, data, T, EOS, streamID);
-    convertAndPushPacket<uint32_t>(this->dataUlong_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<float>(this->dataFloat_out, data, T, EOS, streamID);
-    convertAndPushPacket<int64_t>(this->dataLongLong_out, data, T, EOS,
-                streamID);
-    convertAndPushPacket<uint64_t>(this->dataUlongLong_out, data, T, EOS,
-                streamID);
+        convertAndCopyToAll(container, container.doubleOutput);
+    } else {
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type");
+    }
 }
 
 /*
@@ -672,21 +538,26 @@ void FEI_FileReader_i::fileReaderDisable(size_t tunerId)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
+    if (tunerId >= this->fileReaderContainers.size()) {
+        LOG_ERROR(FEI_FileReader_i, "ERR: INVALID TUNER ID");
+        return;
+    }
+
     bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
     this->frontend_tuner_status[tunerId].enabled = false;
 
     if (previouslyEnabled) {
-        boost::mutex::scoped_lock lock(*this->fileReaderContainers[tunerId].
-                lock);
+        FileReaderContainer &container = this->fileReaderContainers[tunerId];
 
-        this->fileReaderContainers[tunerId].fileReader->stop();
+        boost::mutex::scoped_lock lock(*container.lock);
 
-        if (this->fileReaderContainers[tunerId].currentPacket != NULL) {
-            this->fileReaderContainers[tunerId].
-                fileReader->replacePacket(this->fileReaderContainers[tunerId].
-                        currentPacket);
+        container.fileReader->stop();
 
-            this->fileReaderContainers[tunerId].currentPacket = NULL;
+        if (container.currentPacket != NULL) {
+            container.fileReader->replacePacket(container.currentPacket);
+
+            container.currentPacket = NULL;
+            container.waiting = false;
         }
     }
 }
@@ -697,6 +568,11 @@ void FEI_FileReader_i::fileReaderDisable(size_t tunerId)
 void FEI_FileReader_i::fileReaderEnable(size_t tunerId)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (tunerId >= this->fileReaderContainers.size()) {
+        LOG_ERROR(FEI_FileReader_i, "ERR: INVALID TUNER ID");
+        return;
+    }
 
     bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
     this->frontend_tuner_status[tunerId].enabled = true;
@@ -748,7 +624,8 @@ void FEI_FileReader_i::initializeOutputVectorByType(
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
     size_t bytes = this->AdvancedProperties.packetSize;
-    const std::string type = container.fileReader->getType();
+    const FormattedFileType type = container.fileReader->getType();
+    size_t typeSize = container.typeSize;
 
     // First, clear out all of the vectors
     container.charOutput.resize(0);
@@ -763,28 +640,28 @@ void FEI_FileReader_i::initializeOutputVectorByType(
     container.doubleOutput.resize(0);
 
     // Now resize only the relevant vector
-    if (type == "B") {
+    if (type == CHAR) {
         container.charOutput.resize(bytes);
-    } else if (type == "UB") {
+    } else if (type == OCTET) {
         container.uCharOutput.resize(bytes);
-    } else if (type == "I") {
-        container.shortOutput.resize(bytes / sizeFromType(type));
-    } else if (type == "UI") {
-        container.uShortOutput.resize(bytes / sizeFromType(type));
-    } else if (type == "L") {
-        container.longOutput.resize(bytes / sizeFromType(type));
-    } else if (type == "UL") {
-        container.uLongOutput.resize(bytes / sizeFromType(type));
-    } else if (type == "F") {
-        container.floatOutput.resize(bytes / sizeFromType(type));
-    } else if (type == "X") {
-        container.longLongOutput.resize(bytes / sizeFromType(type));
-    } else if (type == "UX") {
-        container.uLongLongOutput.resize(bytes / sizeFromType(type));
-    } else if (type == "D") {
-        container.doubleOutput.resize(bytes / sizeFromType(type));
+    } else if (type == SHORT) {
+        container.shortOutput.resize(bytes / typeSize);
+    } else if (type == USHORT) {
+        container.uShortOutput.resize(bytes / typeSize);
+    } else if (type == LONG) {
+        container.longOutput.resize(bytes / typeSize);
+    } else if (type == ULONG) {
+        container.uLongOutput.resize(bytes / typeSize);
+    } else if (type == FLOAT) {
+        container.floatOutput.resize(bytes / typeSize);
+    } else if (type == LONGLONG) {
+        container.longLongOutput.resize(bytes / typeSize);
+    } else if (type == ULONGLONG) {
+        container.uLongLongOutput.resize(bytes / typeSize);
+    } else if (type == DOUBLE) {
+        container.doubleOutput.resize(bytes / typeSize);
     } else {
-        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type");
     }
 }
 
@@ -815,8 +692,7 @@ void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
 }
 
 /*
- * Given a file reader container, convert and push packets to active
- * ports
+ * Given a file reader container, push packets to active ports
  */
 void FEI_FileReader_i::pushPacket(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T,
@@ -825,80 +701,30 @@ void FEI_FileReader_i::pushPacket(FileReaderContainer &container,
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    const std::string type = container.fileReader->getType();
+    const FormattedFileType type = container.fileReader->getType();
 
-    if (type == "B") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                container.charOutput.data());
-
-        convertAndPushToAll(container.charOutput, T, EOS, streamID);
-    } else if (type == "UB") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                container.uCharOutput.data());
-
-        convertAndPushToAll(container.uCharOutput, T, EOS, streamID);
-    } else if (type == "I") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.shortOutput.data());
-
-        convertAndPushToAll(container.shortOutput, T, EOS, streamID);
-    } else if (type == "UI") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.uShortOutput.data());
-
-        convertAndPushToAll(container.uShortOutput, T, EOS, streamID);
-    } else if (type == "L") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.longOutput.data());
-
-        convertAndPushToAll(container.longOutput, T, EOS, streamID);
-    } else if (type == "UL") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.uLongOutput.data());
-
-        convertAndPushToAll(container.uLongOutput, T, EOS, streamID);
-    } else if (type == "F") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.floatOutput.data());
-
-        convertAndPushToAll(container.floatOutput, T, EOS, streamID);
-    } else if (type == "X") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.longLongOutput.data());
-
-        convertAndPushToAll(container.longLongOutput, T, EOS, streamID);
-    } else if (type == "UX") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.uLongLongOutput.data());
-
-        convertAndPushToAll(container.uLongLongOutput, T, EOS, streamID);
-    } else if (type == "D") {
-        std::copy(container.currentPacket->data,
-                container.currentPacket->data +
-                container.currentPacket->dataSize,
-                (uint8_t *) container.doubleOutput.data());
-
-        convertAndPushToAll(container.doubleOutput, T, EOS, streamID);
+    if (type == CHAR) {
+        pushPacketToAll<int8_t>(container, T, EOS, streamID);
+    } else if (type == OCTET) {
+        pushPacketToAll<uint8_t>(container, T, EOS, streamID);
+    } else if (type == SHORT) {
+        pushPacketToAll<int16_t>(container, T, EOS, streamID);
+    } else if (type == USHORT) {
+        pushPacketToAll<uint16_t>(container, T, EOS, streamID);
+    } else if (type == LONG) {
+        pushPacketToAll<int32_t>(container, T, EOS, streamID);
+    } else if (type == ULONG) {
+        pushPacketToAll<uint32_t>(container, T, EOS, streamID);
+    } else if (type == FLOAT) {
+        pushPacketToAll<float>(container, T, EOS, streamID);
+    } else if (type == LONGLONG) {
+        pushPacketToAll<int64_t>(container, T, EOS, streamID);
+    } else if (type == ULONGLONG) {
+        pushPacketToAll<uint64_t>(container, T, EOS, streamID);
+    } else if (type == DOUBLE) {
+        pushPacketToAll<double>(container, T, EOS, streamID);
     } else {
-        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type");
     }
 }
 
@@ -952,32 +778,32 @@ void FEI_FileReader_i::setQueueSizes(size_t queueSize)
 /*
  * Return the size in bytes of the specified type
  */
-size_t FEI_FileReader_i::sizeFromType(const std::string &type)
+size_t FEI_FileReader_i::sizeFromType(const FormattedFileType &type)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (type == "B") {
+    if (type == CHAR) {
         return sizeof(int8_t);
-    } else if (type == "UB") {
+    } else if (type == OCTET) {
         return sizeof(uint8_t);
-    } else if (type == "I") {
+    } else if (type == SHORT) {
         return sizeof(int16_t);
-    } else if (type == "UI") {
+    } else if (type == USHORT) {
         return sizeof(uint16_t);
-    } else if (type == "L") {
+    } else if (type == LONG) {
         return sizeof(int32_t);
-    } else if (type == "UL") {
+    } else if (type == ULONG) {
         return sizeof(uint32_t);
-    } else if (type == "F") {
+    } else if (type == FLOAT) {
         return sizeof(float);
-    } else if (type == "X") {
+    } else if (type == LONGLONG) {
         return sizeof(int64_t);
-    } else if (type == "UX") {
+    } else if (type == ULONGLONG) {
         return sizeof(uint64_t);
-    } else if (type == "D") {
+    } else if (type == DOUBLE) {
         return sizeof(double);
     } else {
-        LOG_WARN(FEI_FileReader_i, "Unrecognized file type: " << type);
+        LOG_WARN(FEI_FileReader_i, "Unrecognized file type");
     }
 
     return 0;
@@ -986,33 +812,34 @@ size_t FEI_FileReader_i::sizeFromType(const std::string &type)
 /*
  * Return the string associated with each type
  */
-const std::string FEI_FileReader_i::typeFromTypeInfo(const std::type_info &typeInfo)
+const FormattedFileType FEI_FileReader_i::typeFromTypeInfo(
+        const std::type_info &typeInfo)
 {
     if (typeInfo == typeid(int8_t)) {
-        return "B";
+        return CHAR;
     } else if (typeInfo == typeid(uint8_t)) {
-        return "UB";
+        return OCTET;
     } else if (typeInfo == typeid(int16_t)) {
-        return "I";
+        return SHORT;
     } else if (typeInfo == typeid(uint16_t)) {
-        return "UI";
+        return USHORT;
     } else if (typeInfo == typeid(int32_t)) {
-        return "L";
+        return LONG;
     } else if (typeInfo == typeid(uint32_t)) {
-        return "UL";
+        return ULONG;
     } else if (typeInfo == typeid(float)) {
-        return "F";
+        return FLOAT;
     } else if (typeInfo == typeid(int64_t)) {
-        return "X";
+        return LONGLONG;
     } else if (typeInfo == typeid(uint64_t)) {
-        return "UX";
+        return ULONGLONG;
     } else if (typeInfo == typeid(double)) {
-        return "D";
+        return DOUBLE;
     } else {
         LOG_WARN(FEI_FileReader_i, "Unrecognized data type");
     }
 
-    return "";
+    return FORMAT_UNKNOWN;
 }
 
 /*
@@ -1022,6 +849,14 @@ const std::string FEI_FileReader_i::typeFromTypeInfo(const std::type_info &typeI
 void FEI_FileReader_i::updateAvailableFilesVector()
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    // Deallocate all current tuners
+    for (size_t i = 0; i < this->frontend_tuner_status.size(); ++i) {
+    	enableTuner(i, false);
+    	removeTunerMapping(i);
+    	this->frontend_tuner_status[i].allocation_id_csv =
+    			createAllocationIdCsv(i);
+    }
 
     this->availableFiles.clear();
 
@@ -1065,36 +900,30 @@ void FEI_FileReader_i::updateAvailableFilesVector()
         this->frontend_tuner_status[tunerId].stream_id = "";
         this->frontend_tuner_status[tunerId].tuner_type = "RX_DIGITIZER";
 
+        FileReaderContainer &container = this->fileReaderContainers[tunerId];
+
         this->frontend_tuner_status[tunerId].center_frequency =
-                this->fileReaderContainers[tunerId].
-                        fileReader->getCenterFrequency();
+                container.fileReader->getCenterFrequency();
         this->frontend_tuner_status[tunerId].sample_rate =
-                this->fileReaderContainers[tunerId].
-                        fileReader->getSampleRate();
+                container.fileReader->getSampleRate();
 
         // If the bandwidth isn't available, attempt to use the sample rate
         // and complexity to set the bandwidth
-        if (this->fileReaderContainers[tunerId].
-                    fileReader->getBandwidth() == -1) {
-            if (this->fileReaderContainers[tunerId].
-                        fileReader->getSampleRate() != -1) {
-                if (this->fileReaderContainers[tunerId].
-                            fileReader->getComplex()) {
+        if (container.fileReader->getBandwidth() == -1) {
+            if (container.fileReader->getSampleRate() != -1) {
+                if (container.fileReader->getComplex()) {
                     this->frontend_tuner_status[tunerId].bandwidth =
-                            this->fileReaderContainers[tunerId].
-                                    fileReader->getSampleRate();
+                            container.fileReader->getSampleRate();
                 } else {
                     this->frontend_tuner_status[tunerId].bandwidth =
-                            this->fileReaderContainers[tunerId].
-                                    fileReader->getSampleRate() / 2;
+                            container.fileReader->getSampleRate() / 2;
                 }
             } else {
                 this->frontend_tuner_status[tunerId].bandwidth = -1;
             }
         } else {
             this->frontend_tuner_status[tunerId].bandwidth =
-                    this->fileReaderContainers[tunerId].
-                            fileReader->getBandwidth();
+                    container.fileReader->getBandwidth();
         }
     }
 }
@@ -1143,6 +972,9 @@ void FEI_FileReader_i::updateFileReaders()
             container.currentPacket = NULL;
             container.fileReader = newFileReader;
             container.lock = new boost::mutex;
+            container.pushDelay = boost::posix_time::time_duration();
+            container.typeSize = sizeFromType(newFileReader->getType());
+            container.waiting = false;
 
             this->fileReaderContainers.push_back(container);
         } else {

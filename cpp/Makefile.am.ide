@@ -7,6 +7,7 @@ redhawk_SOURCES_auto = FEI_FileReader.cpp
 redhawk_SOURCES_auto += FEI_FileReader.h
 redhawk_SOURCES_auto += FEI_FileReader_base.cpp
 redhawk_SOURCES_auto += FEI_FileReader_base.h
+redhawk_SOURCES_auto += FEI_FileReader_template.cpp
 redhawk_SOURCES_auto += FEI_FileReader_template.h
 redhawk_SOURCES_auto += FormattedFileReader.cpp
 redhawk_SOURCES_auto += FormattedFileReader.h

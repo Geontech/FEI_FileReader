@@ -162,7 +162,7 @@ False: Does not need control and can just attach to any currently tasked device 
     <configurationkind kindtype="configure"/>
   </structsequence>
   <simple id="updateAvailableFiles" mode="readwrite" name="updateAvailableFiles" type="boolean">
-    <description>When set to true, the available_files property will be updated with all available files found at the path specified by the filePath property.</description>
+    <description>When set to true, the available_files property will be updated with all available files found at the path specified by the filePath property. Note that this will deallocate from all tuners.</description>
     <value>False</value>
     <kind kindtype="configure"/>
     <action type="external"/>

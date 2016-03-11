@@ -13,10 +13,13 @@ struct FileReaderContainer {
     FormattedFileReader *fileReader;
     boost::system_time firstSeen;
     boost::mutex *lock;
+    boost::posix_time::time_duration pushDelay;
     BULKIO::StreamSRI sri;
     boost::posix_time::time_duration timeDuration;
     BULKIO::PrecisionUTCTime timestamp;
+    size_t typeSize;
     bool updateSRI;
+    bool waiting;
 
     std::vector<int8_t> charOutput;
     std::vector<uint8_t> uCharOutput;
@@ -116,25 +119,21 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const bool *oldValue,
                 const bool *newValue);
 
-        // Connection listeners
-        template <typename T>
-        void connectionAdded(const char *connectionId);
-
-        template <typename T>
-        void connectionRemoved(const char *connectionId);
-
         // Miscellaneous helper methods
         void construct();
 
+        void convertAndCopy(FileReaderContainer &container);
+
         template <typename OUT_TYPE, typename PORT_TYPE, typename IN_TYPE>
-        void convertAndPushPacket(PORT_TYPE *port, std::vector<IN_TYPE> &data,
-                BULKIO::PrecisionUTCTime &T, bool EOS,
-                const std::string &streamID);
+        void convertAndCopyPacket(
+                PORT_TYPE *port,
+                std::vector<IN_TYPE> &inData,
+                std::vector<OUT_TYPE> &outData);
 
         template <typename IN_TYPE>
-        void convertAndPushToAll(std::vector<IN_TYPE> &data,
-                BULKIO::PrecisionUTCTime &T, bool EOS,
-                const std::string &streamID);
+        void convertAndCopyToAll(
+                FileReaderContainer &container,
+                std::vector<IN_TYPE> &data);
 
         void fileReaderDisable(size_t tunerId);
 
@@ -148,7 +147,22 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         void pushPacket(
                 FileReaderContainer &container,
+                BULKIO::PrecisionUTCTime &T,
+                bool EOS,
+                const std::string &streamId);
+
+        template <typename PORT_TYPE, typename IN_TYPE>
+        void pushPacketIfActive(
+                PORT_TYPE *port,
+                std::vector<IN_TYPE> &data,
                 BULKIO::PrecisionUTCTime &T, bool EOS,
+                const std::string &streamID);
+
+        template <typename IN_TYPE>
+        void pushPacketToAll(
+                FileReaderContainer &container,
+                BULKIO::PrecisionUTCTime &T,
+                bool EOS,
                 const std::string &streamID);
 
         void pushSRI(BULKIO::StreamSRI &sri);
@@ -157,9 +171,9 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         void setQueueSizes(size_t queueSize);
 
-        size_t sizeFromType(const std::string &type);
+        size_t sizeFromType(const FormattedFileType &type);
 
-        const std::string typeFromTypeInfo(const std::type_info &typeInfo);
+        const FormattedFileType typeFromTypeInfo(const std::type_info &typeInfo);
 
         void updateAvailableFilesVector();
 
@@ -224,7 +238,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const frontend::RFInfoPkt& pkt);
 
     private:
-        std::map<std::string, std::vector<std::string> > streamIdToPortType;
         std::vector<FileReaderContainer> fileReaderContainers;
         uint64_t fractionalResolution;
         bool isPlaying;
