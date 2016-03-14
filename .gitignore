@@ -1,28 +1,17 @@
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
+cpp/.deps/
+cpp/FEI_FileReader
+cpp/*.o
+cpp/Makefile
+cpp/Makefile.in
+cpp/acinclude.m4
+cpp/aclocal.m4
+cpp/autom4te.cache/
+cpp/config.guess
+cpp/config.log
+cpp/config.status
+cpp/config.sub
+cpp/configure
+cpp/depcomp
+cpp/install-sh
+cpp/ltmain.sh
+cpp/missing
