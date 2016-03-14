@@ -9,6 +9,7 @@
  * A structure which includes extra data associated with a file reader
  */
 struct FileReaderContainer {
+    double bandwidth;
     const FilePacket *currentPacket;
     FormattedFileReader *fileReader;
     boost::system_time firstSeen;
@@ -120,7 +121,7 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const bool *newValue);
 
         // Miscellaneous helper methods
-        void construct();
+        void constructor();
 
         void convertAndCopy(FileReaderContainer &container);
 
@@ -166,6 +167,12 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const std::string &streamID);
 
         void pushSRI(BULKIO::StreamSRI &sri);
+
+        bool setAdvancedProperties(const AdvancedProperties_struct &newValue);
+
+        bool setFilePath(const std::string &newValue);
+
+        bool setLoop(const bool &newValue);
 
         void setPacketSizes(size_t packetSize);
 
@@ -240,7 +247,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
     private:
         std::vector<FileReaderContainer> fileReaderContainers;
         uint64_t fractionalResolution;
-        bool isPlaying;
         frontend::RFInfoPkt rfInfoPkt;
         bool useMaxOutputRate;
 };

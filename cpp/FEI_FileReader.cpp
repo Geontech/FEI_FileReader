@@ -19,11 +19,11 @@ PREPARE_LOGGING(FEI_FileReader_i)
  */
 FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl) :
-    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl)
+    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl),
+    fractionalResolution(1),
+    useMaxOutputRate(false)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    construct();
 }
 
 /*
@@ -31,11 +31,11 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
  */
 FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl, char *compDev) :
-    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, compDev)
+    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, compDev),
+    fractionalResolution(1),
+    useMaxOutputRate(false)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    construct();
 }
 
 /*
@@ -44,11 +44,11 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
 FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl,
                                     CF::Properties capacities) :
-    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities)
+    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities),
+    fractionalResolution(1),
+    useMaxOutputRate(false)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    construct();
 }
 
 /*
@@ -57,11 +57,11 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
 FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl,
                                     CF::Properties capacities, char *compDev) :
-    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities, compDev)
+    FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities, compDev),
+    fractionalResolution(1),
+    useMaxOutputRate(false)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    construct();
 }
 
 /*
@@ -291,13 +291,15 @@ bool FEI_FileReader_i::deviceSetTuning(
 
     if (fts.tuner_type == "RX_DIGITIZER") {
         try {
+            FileReaderContainer &container =
+                    this->fileReaderContainers[tuner_id];
+
             if (not frontend::validateRequestVsDevice(request, this->rfInfoPkt,
-                    this->fileReaderContainers[tuner_id].
-                            fileReader->getComplex(),
-                    this->frontend_tuner_status[tuner_id].center_frequency,
-                    this->frontend_tuner_status[tuner_id].center_frequency,
-                    this->frontend_tuner_status[tuner_id].bandwidth,
-                    this->frontend_tuner_status[tuner_id].sample_rate)) {
+                    container.fileReader->getComplex(),
+                    container.fileReader->getCenterFrequency(),
+                    container.fileReader->getCenterFrequency(),
+                    container.bandwidth,
+                    container.fileReader->getSampleRate())) {
                 throw FRONTEND::BadParameterException("INVALID REQUEST --" \
                                 "falls outside of file capabilities");
             }
@@ -382,20 +384,10 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (oldValue->maxOutputRate != newValue->maxOutputRate) {
-        if ((long)newValue->maxOutputRate == 0) {
-            this->useMaxOutputRate = false;
-        } else {
-            this->useMaxOutputRate = true;
-        }
-    }
-
-    if (oldValue->packetSize != newValue->packetSize) {
-        setPacketSizes(newValue->packetSize);
-    }
-
-    if (oldValue->queueSize != newValue->queueSize) {
-        setQueueSizes(newValue->queueSize);
+    if (not setAdvancedProperties(*newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Unable to set Advanced Properties, " \
+                "reverting");
+        this->AdvancedProperties = *oldValue;
     }
 }
 
@@ -403,9 +395,18 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
  * Initialize property change listeners, set the fractional resolution,
  * and initialize the rfinfo packet
  */
-void FEI_FileReader_i::construct()
+void FEI_FileReader_i::constructor()
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    // Setup based on initial property values
+    setAdvancedProperties(this->AdvancedProperties);
+    setFilePath(this->filePath);
+    setLoop(this->loop);
+
+    if (this->updateAvailableFiles) {
+        this->updateAvailableFiles = false;
+    }
 
     // Initialize property change listeners
     addPropertyChangeListener("AdvancedProperties", this,
@@ -519,16 +520,10 @@ void FEI_FileReader_i::filePathChanged(const std::string *oldValue,
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (not boost::filesystem::exists(*newValue)) {
-        LOG_WARN(FEI_FileReader_i, "Invalid file path");
+    if (not setFilePath(*newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Unable to set file path, reverting");
         this->filePath = *oldValue;
-        return;
     }
-
-    updateAvailableFilesVector();
-
-    LOG_DEBUG(FEI_FileReader_i, "Found " <<
-            this->fileReaderContainers.size() << " files to read");
 }
 
 /*
@@ -685,9 +680,9 @@ void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    for (FileReaderIterator i = this->fileReaderContainers.begin();
-            i != this->fileReaderContainers.end(); ++i) {
-        i->fileReader->setLoopingEnabled(*newValue);
+    if (not setLoop(*newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Unable to set loop, reverting");
+        this->loop = *oldValue;
     }
 }
 
@@ -745,6 +740,61 @@ void FEI_FileReader_i::pushSRI(BULKIO::StreamSRI &sri)
     this->dataLongLong_out->pushSRI(sri);
     this->dataUlongLong_out->pushSRI(sri);
     this->dataDouble_out->pushSRI(sri);
+}
+
+/*
+ * Set the AdvancedProperties member
+ */
+bool FEI_FileReader_i::setAdvancedProperties(const AdvancedProperties_struct &newValue)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if ((long)newValue.maxOutputRate == 0) {
+        this->useMaxOutputRate = false;
+    } else {
+        this->useMaxOutputRate = true;
+    }
+
+    setPacketSizes(newValue.packetSize);
+
+    setQueueSizes(newValue.queueSize);
+
+    return true;
+}
+
+/*
+ * Set the filePath member, failing if it is invalid
+ */
+bool FEI_FileReader_i::setFilePath(const std::string &newValue)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (not boost::filesystem::exists(newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Invalid file path");
+        return false;
+    }
+
+    updateAvailableFilesVector();
+
+    LOG_DEBUG(FEI_FileReader_i, "Found " <<
+            this->fileReaderContainers.size() << " files to read");
+
+    return true;
+}
+
+/*
+ * Set the loop member on each file reader
+ */
+bool FEI_FileReader_i::setLoop(const bool &newValue)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    for (FileReaderIterator i = this->fileReaderContainers.begin();
+            i != this->fileReaderContainers.end(); ++i) {
+        i->fileReader->setLoopingEnabled(newValue);
+    }
+
+    return true;
 }
 
 /*
@@ -852,10 +902,10 @@ void FEI_FileReader_i::updateAvailableFilesVector()
 
     // Deallocate all current tuners
     for (size_t i = 0; i < this->frontend_tuner_status.size(); ++i) {
-    	enableTuner(i, false);
-    	removeTunerMapping(i);
-    	this->frontend_tuner_status[i].allocation_id_csv =
-    			createAllocationIdCsv(i);
+        enableTuner(i, false);
+        removeTunerMapping(i);
+        this->frontend_tuner_status[i].allocation_id_csv =
+                createAllocationIdCsv(i);
     }
 
     this->availableFiles.clear();
@@ -914,16 +964,22 @@ void FEI_FileReader_i::updateAvailableFilesVector()
                 if (container.fileReader->getComplex()) {
                     this->frontend_tuner_status[tunerId].bandwidth =
                             container.fileReader->getSampleRate();
+                    container.bandwidth =
+                            container.fileReader->getSampleRate();
                 } else {
                     this->frontend_tuner_status[tunerId].bandwidth =
+                            container.fileReader->getSampleRate() / 2;
+                    container.bandwidth =
                             container.fileReader->getSampleRate() / 2;
                 }
             } else {
                 this->frontend_tuner_status[tunerId].bandwidth = -1;
+                container.bandwidth = -1;
             }
         } else {
             this->frontend_tuner_status[tunerId].bandwidth =
                     container.fileReader->getBandwidth();
+            container.bandwidth = container.fileReader->getBandwidth();
         }
     }
 }
