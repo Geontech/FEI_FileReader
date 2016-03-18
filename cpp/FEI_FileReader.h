@@ -3,23 +3,19 @@
 
 #include "FEI_FileReader_base.h"
 
-#include "FormattedFileReader.h"
+#include "MetaFileReader.h"
 
 /*
  * A structure which includes extra data associated with a file reader
  */
 struct FileReaderContainer {
-    const FilePacket *currentPacket;
-    FormattedFileReader *fileReader;
-    boost::system_time firstSeen;
+    FilePacket currentPacket;
+    MetaFileReader *fileReader;
     boost::mutex *lock;
-    boost::posix_time::time_duration pushDelay;
     BULKIO::StreamSRI sri;
-    boost::posix_time::time_duration timeDuration;
-    BULKIO::PrecisionUTCTime timestamp;
+    boost::thread *thread;
     size_t typeSize;
     bool updateSRI;
-    bool waiting;
 
     std::vector<int8_t> charOutput;
     std::vector<uint8_t> uCharOutput;
@@ -169,11 +165,11 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         void setPacketSizes(size_t packetSize);
 
-        void setQueueSizes(size_t queueSize);
+        size_t sizeFromType(const MetaFileType &type);
 
-        size_t sizeFromType(const FormattedFileType &type);
+        void threadFunction(const size_t &tunerId);
 
-        const FormattedFileType typeFromTypeInfo(const std::type_info &typeInfo);
+        const MetaFileType typeFromTypeInfo(const std::type_info &typeInfo);
 
         void updateAvailableFilesVector();
 
@@ -240,7 +236,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
     private:
         std::vector<FileReaderContainer> fileReaderContainers;
         uint64_t fractionalResolution;
-        bool isPlaying;
         frontend::RFInfoPkt rfInfoPkt;
         bool useMaxOutputRate;
 };

@@ -18,9 +18,9 @@ else
 fi
 
 if [ -n ${OSSIE_AC_INCLUDE} ]; then
-        aclocal -I ${OSSIE_AC_INCLUDE}
+        aclocal -I ${OSSIE_AC_INCLUDE} -I m4
 else
-        aclocal
+        aclocal -I m4
 fi
 
 autoconf

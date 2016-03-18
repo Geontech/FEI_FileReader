@@ -13,8 +13,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataLong_out, data, container.longOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -28,8 +30,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataLong_out, data, container.longOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -43,8 +47,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataLong_out, data, container.longOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -58,8 +64,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataLong_out, data, container.longOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -73,8 +81,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataUshort_out, data, container.uShortOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -87,8 +97,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataShort_out, data, container.shortOutput);
     convertAndCopyPacket(this->dataUshort_out, data, container.uShortOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -101,8 +113,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataShort_out, data, container.shortOutput);
     convertAndCopyPacket(this->dataUshort_out, data, container.uShortOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -116,7 +130,8 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataUshort_out, data, container.uShortOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -130,7 +145,8 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataUshort_out, data, container.uShortOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
     convertAndCopyPacket(this->dataDouble_out, data, container.doubleOutput);
 }
 
@@ -144,8 +160,10 @@ void FEI_FileReader_i::convertAndCopyToAll(FileReaderContainer &container,
     convertAndCopyPacket(this->dataUshort_out, data, container.uShortOutput);
     convertAndCopyPacket(this->dataUlong_out, data, container.uLongOutput);
     convertAndCopyPacket(this->dataFloat_out, data, container.floatOutput);
-    convertAndCopyPacket(this->dataLongLong_out, data, container.longLongOutput);
-    convertAndCopyPacket(this->dataUlongLong_out, data, container.uLongLongOutput);
+    convertAndCopyPacket(this->dataLongLong_out, data,
+            container.longLongOutput);
+    convertAndCopyPacket(this->dataUlongLong_out, data,
+            container.uLongLongOutput);
 }
 
 /*

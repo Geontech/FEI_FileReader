@@ -19,6 +19,11 @@ distclean-local:
 	rm -f Makefile.in
 	rm -f missing
 	rm -rf .deps
+	rm -f m4/libtool.m4
+	rm -f m4/ltoptions.m4
+	rm -f m4/ltsugar.m4
+	rm -f m4/ltversion.m4
+	rm -f m4/lt~obsolete.m4
 
 
 # Sources, libraries and library directories are auto-included from a file
@@ -26,7 +31,7 @@ distclean-local:
 # you wish to manually control these options.
 include $(srcdir)/Makefile.am.ide
 FEI_FileReader_SOURCES = $(redhawk_SOURCES_auto)
-FEI_FileReader_LDADD = $(PROJECTDEPS_LIBS) $(BOOST_LDFLAGS) $(BOOST_THREAD_LIB) $(BOOST_REGEX_LIB) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB) $(INTERFACEDEPS_LIBS) $(redhawk_LDADD_auto) -luuid
+FEI_FileReader_LDADD = $(PROJECTDEPS_LIBS) $(BOOST_LDFLAGS) $(BOOST_THREAD_LIB) $(BOOST_REGEX_LIB) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB) $(BOOST_IOSTREAMS_LIB) $(INTERFACEDEPS_LIBS) $(redhawk_LDADD_auto) -luuid
 FEI_FileReader_CXXFLAGS = -Wall $(PROJECTDEPS_CFLAGS) $(BOOST_CPPFLAGS) $(INTERFACEDEPS_CFLAGS) $(redhawk_INCLUDES_auto)
 FEI_FileReader_LDFLAGS = -Wall $(redhawk_LDFLAGS_auto)
 
