@@ -20,7 +20,6 @@ struct AdvancedProperties_struct {
     {
         maxOutputRate = 0.0;
         packetSize = 1887432;
-        queueSize = 25;
     };
 
     static std::string getId() {
@@ -29,7 +28,6 @@ struct AdvancedProperties_struct {
 
     double maxOutputRate;
     CORBA::ULong packetSize;
-    CORBA::ULong queueSize;
 };
 
 inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
@@ -42,9 +40,6 @@ inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
     if (props.contains("AdvancedProperties::packetSize")) {
         if (!(props["AdvancedProperties::packetSize"] >>= s.packetSize)) return false;
     }
-    if (props.contains("AdvancedProperties::queueSize")) {
-        if (!(props["AdvancedProperties::queueSize"] >>= s.queueSize)) return false;
-    }
     return true;
 }
 
@@ -54,8 +49,6 @@ inline void operator<<= (CORBA::Any& a, const AdvancedProperties_struct& s) {
     props["AdvancedProperties::maxOutputRate"] = s.maxOutputRate;
  
     props["AdvancedProperties::packetSize"] = s.packetSize;
- 
-    props["AdvancedProperties::queueSize"] = s.queueSize;
     a <<= props;
 }
 
@@ -63,8 +56,6 @@ inline bool operator== (const AdvancedProperties_struct& s1, const AdvancedPrope
     if (s1.maxOutputRate!=s2.maxOutputRate)
         return false;
     if (s1.packetSize!=s2.packetSize)
-        return false;
-    if (s1.queueSize!=s2.queueSize)
         return false;
     return true;
 }

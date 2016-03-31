@@ -131,11 +131,6 @@ False: Does not need control and can just attach to any currently tasked device 
       <value>1887432</value>
       <units>bytes</units>
     </simple>
-    <simple id="AdvancedProperties::queueSize" name="queueSize" type="ulong">
-      <description>The number of packets to initalize the free data queue with.  These are then populated with the data from the files to provide caching of the file data.</description>
-      <value>25</value>
-      <units>Packets</units>
-    </simple>
     <configurationkind kindtype="property"/>
   </struct>
   <structsequence id="availableFiles" mode="readonly" name="availableFiles">

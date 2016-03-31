@@ -7,7 +7,6 @@
 
 #include "FormattedFileReader.h"
 
-#include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
@@ -15,24 +14,39 @@
 PREPARE_LOGGING(FormattedFileReader)
 
 /*
- * Initialize the variables.  Will call ThreadedFileReader()
+ * Initialize the members.  Will call MetaFileReader()
  */
-FormattedFileReader::FormattedFileReader() :
-    bandwidth(-1),
-    complex(true),
-    centerFrequency(-1),
-    sampleRate(-1),
-    type(FORMAT_UNKNOWN)
+FormattedFileReader::FormattedFileReader()
 {
     LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
 }
 
 /*
- * Will call ~ThreadedFileReader()
+ * Will call ~MetaFileReader()
  */
 FormattedFileReader::~FormattedFileReader()
 {
     LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+}
+
+/*
+ * Static method to check if this type of file reader is applicable to the
+ * given file path
+ */
+bool FormattedFileReader::isValid(const std::string &filePath)
+{
+    LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
+
+    // Dummy variables
+    std::string fileHandle;
+    std::string cf;
+    std::string sr;
+    std::string bw;
+    std::string type;
+    std::string cx;
+
+    return FormattedFileReader::fromFileName(filePath, fileHandle, cf, sr, bw,
+            type, cx);
 }
 
 /*
@@ -43,7 +57,7 @@ bool FormattedFileReader::setFilePath(const std::string &newFilePath)
 {
     LOG_TRACE(FormattedFileReader, __PRETTY_FUNCTION__);
 
-    if (not ThreadedFileReader::setFilePath(newFilePath)) {
+    if (not MappedFileReader::setFilePath(newFilePath)) {
         LOG_WARN(FormattedFileReader, "Ignoring file name as configuration");
         return false;
     }
@@ -55,7 +69,8 @@ bool FormattedFileReader::setFilePath(const std::string &newFilePath)
     // Attempt to extract metadata from the file name
     std::string fileHandle, cf, sr, bw, type, cx;
 
-    if (not fromFileName(fileName, fileHandle, cf, sr, bw, type, cx)) {
+    if (not FormattedFileReader::fromFileName(fileName, fileHandle, cf, sr, bw,
+            type, cx)) {
         LOG_WARN(FormattedFileReader, "Unable to extract metadata from file "
                     << fileName);
         return true;
@@ -65,30 +80,36 @@ bool FormattedFileReader::setFilePath(const std::string &newFilePath)
     std::string number, unit;
     std::stringstream buffer;
 
-    if (cf != "" && splitNumberAndUnit(cf, number, unit)) {
+    if (cf != "" && FormattedFileReader::splitNumberAndUnit(cf, number,
+            unit)) {
         buffer << number;
         buffer >> this->centerFrequency;
-        this->centerFrequency *= multiplierFromUnit(unit);
+        this->centerFrequency *=
+                FormattedFileReader::multiplierFromUnit(unit);
     } else {
         this->centerFrequency = -1;
     }
 
     buffer.clear();
 
-    if (sr != "" && splitNumberAndUnit(sr, number, unit)) {
+    if (sr != "" && FormattedFileReader::splitNumberAndUnit(sr, number,
+            unit)) {
         buffer << number;
         buffer >> this->sampleRate;
-        this->sampleRate *= multiplierFromUnit(unit);
+        this->sampleRate *=
+                FormattedFileReader::multiplierFromUnit(unit);
     } else {
         this->sampleRate = -1;
     }
 
     buffer.clear();
 
-    if (bw != "" && splitNumberAndUnit(bw, number, unit)) {
+    if (bw != "" && FormattedFileReader::splitNumberAndUnit(bw, number,
+            unit)) {
         buffer << number;
         buffer >> this->bandwidth;
-        this->bandwidth *= multiplierFromUnit(unit);
+        this->bandwidth *=
+                FormattedFileReader::multiplierFromUnit(unit);
     } else {
         this->bandwidth = -1;
     }

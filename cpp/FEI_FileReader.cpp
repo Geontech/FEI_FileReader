@@ -9,6 +9,8 @@
 
 #include "FEI_FileReader.h"
 
+#include "FormattedFileReader.h"
+
 #include <boost/date_time/time_defs.hpp>
 #include <boost/filesystem.hpp>
 
@@ -99,134 +101,7 @@ int FEI_FileReader_i::serviceFunction()
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    // A variable for keeping track of the smallest time duration so far and
-    // indicating the correct index to use for the next push
-    boost::posix_time::time_duration
-        smallestDuration(boost::posix_time::hours(1));
-    int smallestTimeDurationIndex = -1;
-
-    for (size_t tunerId = 0; tunerId < this->fileReaderContainers.size();
-            ++tunerId) {
-        // Check to see if the channel is allocated before requesting a data
-        // packet
-        if (this->tuner_allocation_ids[tunerId].control_allocation_id.
-                empty()) {
-            continue;
-        }
-
-        // Check to see if the output is enabled
-        if (not this->frontend_tuner_status[tunerId].enabled) {
-            continue;
-        }
-
-        FileReaderContainer &container = this->fileReaderContainers[tunerId];
-
-        // Lock to protect the current packet
-        boost::mutex::scoped_lock lock(*container.lock);
-
-        // Check if we're currently waiting for a packet to be ready for
-        // throttling
-        if (not container.waiting) {
-            container.currentPacket = container.fileReader->getNextPacket();
-
-            if (container.currentPacket == NULL) {
-                continue;
-            }
-
-            // Get the current time for keeping track of when to push
-            container.firstSeen = boost::get_system_time();
-            container.timestamp = bulkio::time::utils::now();
-
-            // Calculate the time duration for this packet based on the
-            // number of samples, the requested sample rate, and the complexity
-            size_t bytes = container.currentPacket->dataSize;
-
-            size_t samples = bytes / container.typeSize;
-
-            if (container.fileReader->getComplex()) {
-                samples /= 2;
-            }
-
-            double sampleRate = this->frontend_tuner_status[tunerId].
-                                        sample_rate;
-
-            if (this->useMaxOutputRate &&
-                    sampleRate > this->AdvancedProperties.maxOutputRate) {
-                sampleRate = this->AdvancedProperties.maxOutputRate;
-            }
-
-            double timeDuration = samples / sampleRate;
-            int seconds = timeDuration;
-            int fractional = this->fractionalResolution *
-                    (timeDuration - seconds);
-
-            container.timeDuration = boost::posix_time::time_duration(0, 0,
-                    seconds, fractional);
-
-            // Convert the packet now
-            convertAndCopy(container);
-
-            // Replace the packet
-            container.fileReader->replacePacket(container.currentPacket);
-
-            container.currentPacket = NULL;
-
-            container.waiting = true;
-        }
-
-        // Check if this is the smallest duration of the available readers
-        if ((container.timeDuration - (boost::get_system_time() -
-                container.firstSeen) - container.pushDelay) <
-                    smallestDuration) {
-            // The duration is calculated based on the calculated duration,
-            // taking into account how long it has taken to reach this point
-            // and how long it takes to perform the pushPacket
-            smallestDuration = container.timeDuration -
-                    (boost::get_system_time() - container.firstSeen) -
-                    container.pushDelay;
-            smallestTimeDurationIndex = tunerId;
-        }
-    }
-
-    // In this case, wait the time duration and then push
-    if (smallestTimeDurationIndex != -1) {
-        FileReaderContainer &containerToPush =
-                this->fileReaderContainers[smallestTimeDurationIndex];
-
-        boost::posix_time::time_duration timeToWait =
-                containerToPush.timeDuration -
-                (boost::get_system_time() - containerToPush.firstSeen) -
-                containerToPush.pushDelay;
-
-        boost::this_thread::sleep(timeToWait);
-
-        std::string streamId = getStreamId(smallestTimeDurationIndex);
-
-        // If the update SRI flag is set, push the SRI packet
-        if (containerToPush.updateSRI) {
-            BULKIO::StreamSRI sri = create(streamId,
-                    this->frontend_tuner_status[smallestTimeDurationIndex]);
-            sri.mode = containerToPush.fileReader->getComplex();
-
-            pushSRI(sri);
-
-            containerToPush.updateSRI = false;
-        }
-
-        // Take note of the current time to calculate the pushPacket delay
-        boost::system_time prePushTime = boost::get_system_time();
-
-        pushPacket(containerToPush, containerToPush.timestamp, false,
-                streamId);
-
-        containerToPush.pushDelay = (boost::get_system_time() - prePushTime);
-
-        containerToPush.waiting = false;
-
-        return NORMAL;
-    } else {
-        return NOOP;
-    }
+    return NOOP;
 }
 
 /*
@@ -318,9 +193,6 @@ bool FEI_FileReader_i::deviceSetTuning(
         // Enable multi-out capability
         matchAllocationIdToStreamId(request.allocation_id, streamId, "");
 
-        // Enable the file reader
-        this->fileReaderContainers[tuner_id].fileReader->start();
-
         this->fileReaderContainers[tuner_id].updateSRI = true;
     }
 
@@ -343,8 +215,6 @@ bool FEI_FileReader_i::deviceDeleteTuning(
 
     FileReaderContainer &container = this->fileReaderContainers[tuner_id];
 
-    container.fileReader->stop();
-
     std::string streamId = getStreamId(tuner_id);
     BULKIO::StreamSRI sri = create(streamId,
                                     this->frontend_tuner_status[tuner_id]);
@@ -355,20 +225,11 @@ bool FEI_FileReader_i::deviceDeleteTuning(
 
     container.updateSRI = false;
 
-    if (container.currentPacket != NULL) {
-        container.fileReader->replacePacket(container.currentPacket);
-        container.waiting = false;
-    }
-
-    FilePacket tempPacket;
-    tempPacket.dataSize = 0;
-    container.currentPacket = &tempPacket;
+    container.currentPacket = FilePacket();
 
     BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
 
     pushPacket(container, T, true, streamId);
-
-    container.currentPacket = NULL;
 
     fts.stream_id = "";
 
@@ -455,56 +316,56 @@ void FEI_FileReader_i::convertAndCopy(FileReaderContainer &container)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    const FormattedFileType type = container.fileReader->getType();
+    const MetaFileType type = container.fileReader->getType();
 
     if (type == CHAR) {
-        memcpy(container.charOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.charOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.charOutput);
     } else if (type == OCTET) {
-        memcpy(container.uCharOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.uCharOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.uCharOutput);
     } else if (type == SHORT) {
-        memcpy(container.shortOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.shortOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.shortOutput);
     } else if (type == USHORT) {
-        memcpy(container.uShortOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.uShortOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.uShortOutput);
     } else if (type == LONG) {
-        memcpy(container.longOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.longOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.longOutput);
     } else if (type == ULONG) {
-        memcpy(container.uLongOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.uLongOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.uLongOutput);
     } else if (type == FLOAT) {
-        memcpy(container.floatOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.floatOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.floatOutput);
     } else if (type == LONGLONG) {
-        memcpy(container.longLongOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.longLongOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.longLongOutput);
     } else if (type == ULONGLONG) {
-        memcpy(container.uLongLongOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.uLongLongOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.uLongLongOutput);
     } else if (type == DOUBLE) {
-        memcpy(container.doubleOutput.data(), container.currentPacket->data,
-                container.currentPacket->dataSize);
+        memcpy(container.doubleOutput.data(), container.currentPacket.data,
+                container.currentPacket.dataSize);
 
         convertAndCopyToAll(container, container.doubleOutput);
     } else {
@@ -546,14 +407,10 @@ void FEI_FileReader_i::fileReaderDisable(size_t tunerId)
 
         boost::mutex::scoped_lock lock(*container.lock);
 
-        container.fileReader->stop();
-
-        if (container.currentPacket != NULL) {
-            container.fileReader->replacePacket(container.currentPacket);
-
-            container.currentPacket = NULL;
-            container.waiting = false;
-        }
+        container.thread->interrupt();
+        container.thread->join();
+        delete container.thread;
+        container.thread = NULL;
     }
 }
 
@@ -580,7 +437,12 @@ void FEI_FileReader_i::fileReaderEnable(size_t tunerId)
 
         pushSRI(sri);
 
-        this->fileReaderContainers[tunerId].fileReader->start();
+        boost::mutex::scoped_lock lock(*this->fileReaderContainers[tunerId].
+                lock);
+
+        this->fileReaderContainers[tunerId].thread =
+                new boost::thread(&FEI_FileReader_i::threadFunction, this,
+                        tunerId);
     }
 }
 
@@ -619,7 +481,7 @@ void FEI_FileReader_i::initializeOutputVectorByType(
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
     size_t bytes = this->AdvancedProperties.packetSize;
-    const FormattedFileType type = container.fileReader->getType();
+    const MetaFileType type = container.fileReader->getType();
     size_t typeSize = container.typeSize;
 
     // First, clear out all of the vectors
@@ -696,7 +558,7 @@ void FEI_FileReader_i::pushPacket(FileReaderContainer &container,
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    const FormattedFileType type = container.fileReader->getType();
+    const MetaFileType type = container.fileReader->getType();
 
     if (type == CHAR) {
         pushPacketToAll<int8_t>(container, T, EOS, streamID);
@@ -757,8 +619,6 @@ bool FEI_FileReader_i::setAdvancedProperties(const AdvancedProperties_struct &ne
 
     setPacketSizes(newValue.packetSize);
 
-    setQueueSizes(newValue.queueSize);
-
     return true;
 }
 
@@ -813,22 +673,9 @@ void FEI_FileReader_i::setPacketSizes(size_t packetSize)
 }
 
 /*
- * Set the queue size for each file reader
- */
-void FEI_FileReader_i::setQueueSizes(size_t queueSize)
-{
-    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    for (FileReaderIterator i = this->fileReaderContainers.begin();
-            i != this->fileReaderContainers.end(); ++i) {
-        i->fileReader->setQueueSize(queueSize);
-    }
-}
-
-/*
  * Return the size in bytes of the specified type
  */
-size_t FEI_FileReader_i::sizeFromType(const FormattedFileType &type)
+size_t FEI_FileReader_i::sizeFromType(const MetaFileType &type)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
@@ -859,10 +706,109 @@ size_t FEI_FileReader_i::sizeFromType(const FormattedFileType &type)
     return 0;
 }
 
+void FEI_FileReader_i::threadFunction(const size_t &tunerId)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    FileReaderContainer &container = this->fileReaderContainers[tunerId];
+    boost::system_time firstSeen;
+    boost::posix_time::time_duration pushDelay, timeBetweenPackets;
+    BULKIO::PrecisionUTCTime timestamp;
+
+    // Check to see if the channel is allocated before requesting a data
+    // packet
+    while (true) {
+        if (boost::this_thread::interruption_requested()) {
+            break;
+        }
+
+        if (this->tuner_allocation_ids[tunerId].control_allocation_id.empty()
+                || not this->frontend_tuner_status[tunerId].enabled) {
+            boost::posix_time::time_duration
+                    timeToSleep(boost::posix_time::milliseconds(250));
+            boost::this_thread::sleep(timeToSleep);
+            continue;
+        }
+
+        boost::mutex::scoped_lock lock(*container.lock);
+
+        container.currentPacket = container.
+                fileReader->getNextPacket(this->AdvancedProperties.packetSize);
+
+        if (container.currentPacket.data == NULL) {
+            LOG_WARN(FEI_FileReader_i, "Got NULL data for tuner number " <<
+                    tunerId);
+            continue;
+        }
+
+        // Get the current time for keeping track of when to push
+        firstSeen = boost::get_system_time();
+        timestamp = bulkio::time::utils::now();
+
+        // Calculate the time duration for this packet based on the
+        // number of samples, the requested sample rate, and the complexity
+        size_t bytes = container.currentPacket.dataSize;
+
+        size_t samples = bytes / container.typeSize;
+
+        if (container.fileReader->getComplex()) {
+            samples /= 2;
+        }
+
+        double sampleRate = this->frontend_tuner_status[tunerId].
+                                    sample_rate;
+
+        if (this->useMaxOutputRate &&
+                sampleRate > this->AdvancedProperties.maxOutputRate) {
+            sampleRate = this->AdvancedProperties.maxOutputRate;
+        }
+
+        double timeDuration = samples / sampleRate;
+        int seconds = timeDuration;
+        int fractional = this->fractionalResolution *
+                (timeDuration - seconds);
+
+        timeBetweenPackets = boost::posix_time::time_duration(0, 0, seconds,
+                fractional);
+
+        // Convert the packet now
+        convertAndCopy(container);
+
+        std::string streamId = getStreamId(tunerId);
+
+        // If the update SRI flag is set, push the SRI packet
+        if (container.updateSRI) {
+            BULKIO::StreamSRI sri = create(streamId,
+                    this->frontend_tuner_status[tunerId]);
+            sri.mode = container.fileReader->getComplex();
+
+            pushSRI(sri);
+
+            container.updateSRI = false;
+        }
+
+        // Take note of the current time to calculate the pushPacket delay
+        boost::system_time prePushTime = boost::get_system_time();
+
+        pushPacket(container, timestamp, false, streamId);
+
+        pushDelay = (boost::get_system_time() - prePushTime);
+
+        lock.unlock();
+
+        boost::posix_time::time_duration timeToWait =
+                timeBetweenPackets -
+                (boost::get_system_time() - firstSeen) -
+                pushDelay;
+
+        boost::this_thread::sleep(timeToWait);
+    }
+}
+
 /*
  * Return the string associated with each type
  */
-const FormattedFileType FEI_FileReader_i::typeFromTypeInfo(
+const MetaFileType FEI_FileReader_i::typeFromTypeInfo(
         const std::type_info &typeInfo)
 {
     if (typeInfo == typeid(int8_t)) {
@@ -1009,32 +955,33 @@ void FEI_FileReader_i::updateFileReaders()
 
     for (size_t id = 0; id < this->fileReaderContainers.size(); ++id) {
         delete this->fileReaderContainers[id].fileReader;
+        delete this->fileReaderContainers[id].lock;
     }
 
     this->fileReaderContainers.clear();
 
-    FormattedFileReader *newFileReader = NULL;
+    MetaFileReader *newFileReader = NULL;
 
     for (size_t id = 0; id < this->availableFiles.size(); ++id) {
         FileReaderContainer container;
 
-        newFileReader = new FormattedFileReader;
+        // Check if file meta information is in the file name
+        if (FormattedFileReader::isValid(this->availableFiles[id].path)) {
+            newFileReader = new FormattedFileReader;
 
-        if (newFileReader->setFilePath(this->availableFiles[id].path)) {
+            newFileReader->setFilePath(this->availableFiles[id].path);
             newFileReader->setLoopingEnabled(this->loop);
             newFileReader->setPacketSize(this->AdvancedProperties.packetSize);
-            newFileReader->setQueueSize(this->AdvancedProperties.queueSize);
 
-            container.currentPacket = NULL;
             container.fileReader = newFileReader;
             container.lock = new boost::mutex;
-            container.pushDelay = boost::posix_time::time_duration();
+            container.thread = NULL;
             container.typeSize = sizeFromType(newFileReader->getType());
-            container.waiting = false;
 
             this->fileReaderContainers.push_back(container);
         } else {
-            delete newFileReader;
+            LOG_WARN(FEI_FileReader_i, "Unable to extract met information " \
+                    "for file: " << this->availableFiles[id].path);
         }
     }
 
