@@ -136,7 +136,7 @@ void FEI_FileReader_i::deviceEnable(frontend_tuner_status_struct_struct &fts,
     ************************************************************/
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    fileReaderEnable(tuner_id);
+    fts.enabled = true;
     return;
 }
 
@@ -150,7 +150,7 @@ void FEI_FileReader_i::deviceDisable(frontend_tuner_status_struct_struct &fts,
     ************************************************************/
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    fileReaderDisable(tuner_id);
+    fts.enabled = false;
     return;
 }
 
@@ -163,6 +163,11 @@ bool FEI_FileReader_i::deviceSetTuning(
     return true if the tuning succeeded, and false if it failed
     ************************************************************/
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (tuner_id >= this->fileReaderContainers.size()) {
+        LOG_ERROR(FEI_FileReader_i, "ERR: INVALID TUNER ID");
+        return false;
+    }
 
     if (fts.tuner_type == "RX_DIGITIZER") {
         try {
@@ -184,8 +189,7 @@ bool FEI_FileReader_i::deviceSetTuning(
             return false;
         }
 
-        // Specify the parameters of the request for the purposes
-        // of throttling
+        FileReaderContainer &container = this->fileReaderContainers[tuner_id];
 
         // Create a stream id if not already created for this file
         std::string streamId = getStreamId(tuner_id);
@@ -193,7 +197,19 @@ bool FEI_FileReader_i::deviceSetTuning(
         // Enable multi-out capability
         matchAllocationIdToStreamId(request.allocation_id, streamId, "");
 
-        this->fileReaderContainers[tuner_id].updateSRI = true;
+        container.updateSRI = true;
+
+        if (not container.thread) {
+            BULKIO::StreamSRI sri = create(streamId,
+                    this->frontend_tuner_status[tuner_id]);
+
+            pushSRI(sri);
+
+            boost::mutex::scoped_lock lock(*container.lock);
+
+            container.thread = new boost::thread(
+                    &FEI_FileReader_i::threadFunction, this, tuner_id);
+        }
     }
 
     return true;
@@ -215,21 +231,14 @@ bool FEI_FileReader_i::deviceDeleteTuning(
 
     FileReaderContainer &container = this->fileReaderContainers[tuner_id];
 
-    std::string streamId = getStreamId(tuner_id);
-    BULKIO::StreamSRI sri = create(streamId,
-                                    this->frontend_tuner_status[tuner_id]);
+    if (container.thread) {
+        boost::mutex::scoped_lock lock(*container.lock);
 
-    sri.mode = container.fileReader->getComplex();
-
-    pushSRI(sri);
-
-    container.updateSRI = false;
-
-    container.currentPacket = FilePacket();
-
-    BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
-
-    pushPacket(container, T, true, streamId);
+        container.thread->interrupt();
+        container.thread->join();
+        delete container.thread;
+        container.thread = NULL;
+    }
 
     fts.stream_id = "";
 
@@ -384,65 +393,6 @@ void FEI_FileReader_i::filePathChanged(const std::string *oldValue,
     if (not setFilePath(*newValue)) {
         LOG_WARN(FEI_FileReader_i, "Unable to set file path, reverting");
         this->filePath = *oldValue;
-    }
-}
-
-/*
- * Disable the file reader with the given tuner ID and clean up
- */
-void FEI_FileReader_i::fileReaderDisable(size_t tunerId)
-{
-    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    if (tunerId >= this->fileReaderContainers.size()) {
-        LOG_ERROR(FEI_FileReader_i, "ERR: INVALID TUNER ID");
-        return;
-    }
-
-    bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
-    this->frontend_tuner_status[tunerId].enabled = false;
-
-    if (previouslyEnabled) {
-        FileReaderContainer &container = this->fileReaderContainers[tunerId];
-
-        boost::mutex::scoped_lock lock(*container.lock);
-
-        container.thread->interrupt();
-        container.thread->join();
-        delete container.thread;
-        container.thread = NULL;
-    }
-}
-
-/*
- * Enable the file reader with the given tuner ID and push SRI
- */
-void FEI_FileReader_i::fileReaderEnable(size_t tunerId)
-{
-    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    if (tunerId >= this->fileReaderContainers.size()) {
-        LOG_ERROR(FEI_FileReader_i, "ERR: INVALID TUNER ID");
-        return;
-    }
-
-    bool previouslyEnabled = this->frontend_tuner_status[tunerId].enabled;
-    this->frontend_tuner_status[tunerId].enabled = true;
-
-    std::string streamId = getStreamId(tunerId);
-
-    if (not previouslyEnabled) {
-        BULKIO::StreamSRI sri = create(streamId,
-                this->frontend_tuner_status[tunerId]);
-
-        pushSRI(sri);
-
-        boost::mutex::scoped_lock lock(*this->fileReaderContainers[tunerId].
-                lock);
-
-        this->fileReaderContainers[tunerId].thread =
-                new boost::thread(&FEI_FileReader_i::threadFunction, this,
-                        tunerId);
     }
 }
 
@@ -726,7 +676,18 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId)
                 || not this->frontend_tuner_status[tunerId].enabled) {
             boost::posix_time::time_duration
                     timeToSleep(boost::posix_time::milliseconds(250));
-            boost::this_thread::sleep(timeToSleep);
+
+            // Catch the exception to ensure EOS is sent
+            try {
+                boost::this_thread::sleep(timeToSleep);
+            } catch (boost::thread_interrupted &e) {
+                break;
+            } catch(...) {
+                LOG_WARN(FEI_FileReader_i, "An unexpected error occurred" <<
+                        " while thread waited to be enabled");
+                break;
+            }
+
             continue;
         }
 
@@ -796,13 +757,43 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId)
 
         lock.unlock();
 
+        if (container.currentPacket.lastPacket && not this->loop) {
+            break;
+        }
+
         boost::posix_time::time_duration timeToWait =
                 timeBetweenPackets -
                 (boost::get_system_time() - firstSeen) -
                 pushDelay;
 
-        boost::this_thread::sleep(timeToWait);
+        // Catch the exception to ensure the EOS is sent
+        try {
+            boost::this_thread::sleep(timeToWait);
+        } catch (boost::thread_interrupted &e) {
+            break;
+        } catch(...) {
+            LOG_WARN(FEI_FileReader_i, "An unexpected error occurred" <<
+                    " while thread waited for next push");
+            break;
+        }
     }
+
+    // Send the EOS at this point
+    std::string streamId = getStreamId(tunerId);
+    BULKIO::StreamSRI sri = create(streamId,
+                                    this->frontend_tuner_status[tunerId]);
+
+    sri.mode = container.fileReader->getComplex();
+
+    pushSRI(sri);
+
+    container.updateSRI = false;
+
+    container.currentPacket = FilePacket();
+
+    BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
+
+    pushPacket(container, T, true, streamId);
 }
 
 /*
