@@ -70,11 +70,10 @@ FilePacket MappedFileReader::getNextPacket(size_t bytes)
         this->readIndex += bytes;
     } else {
         packet.dataSize = bytesLeft;
+        this->readIndex = 0;
 
-        if (this->loopingEnabled) {
-            this->readIndex = 0;
-        } else {
-            packet.lastPacket = true;
+        if (not this->loopingEnabled) {
+        	packet.lastPacket = true;
         }
     }
 
