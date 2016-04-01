@@ -131,10 +131,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 FileReaderContainer &container,
                 std::vector<IN_TYPE> &data);
 
-        void fileReaderDisable(size_t tunerId);
-
-        void fileReaderEnable(size_t tunerId);
-
         std::string getStreamId(size_t tunerId);
 
         void initializeOutputVectorByType(FileReaderContainer &container);
