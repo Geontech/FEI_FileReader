@@ -20,6 +20,7 @@ struct AdvancedProperties_struct {
     {
         maxOutputRate = 1e12;
         minOutputRate = 1.0;
+        newStreamAfterLoop = false;
         packetSize = 1887432;
         sampleRateForSRI = false;
     };
@@ -30,6 +31,7 @@ struct AdvancedProperties_struct {
 
     double maxOutputRate;
     double minOutputRate;
+    bool newStreamAfterLoop;
     CORBA::ULong packetSize;
     bool sampleRateForSRI;
 };
@@ -43,6 +45,9 @@ inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
     }
     if (props.contains("AdvancedProperties::minOutputRate")) {
         if (!(props["AdvancedProperties::minOutputRate"] >>= s.minOutputRate)) return false;
+    }
+    if (props.contains("AdvancedProperties::newStreamAfterLoop")) {
+        if (!(props["AdvancedProperties::newStreamAfterLoop"] >>= s.newStreamAfterLoop)) return false;
     }
     if (props.contains("AdvancedProperties::packetSize")) {
         if (!(props["AdvancedProperties::packetSize"] >>= s.packetSize)) return false;
@@ -60,6 +65,8 @@ inline void operator<<= (CORBA::Any& a, const AdvancedProperties_struct& s) {
  
     props["AdvancedProperties::minOutputRate"] = s.minOutputRate;
  
+    props["AdvancedProperties::newStreamAfterLoop"] = s.newStreamAfterLoop;
+ 
     props["AdvancedProperties::packetSize"] = s.packetSize;
  
     props["AdvancedProperties::sampleRateForSRI"] = s.sampleRateForSRI;
@@ -70,6 +77,8 @@ inline bool operator== (const AdvancedProperties_struct& s1, const AdvancedPrope
     if (s1.maxOutputRate!=s2.maxOutputRate)
         return false;
     if (s1.minOutputRate!=s2.minOutputRate)
+        return false;
+    if (s1.newStreamAfterLoop!=s2.newStreamAfterLoop)
         return false;
     if (s1.packetSize!=s2.packetSize)
         return false;

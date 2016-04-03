@@ -131,6 +131,13 @@ False: Does not need control and can just attach to any currently tasked device 
       <value>1.0</value>
       <units>Sps</units>
     </simple>
+    <simple id="AdvancedProperties::newStreamAfterLoop" name="newStreamAfterLoop" type="boolean">
+      <description>When set to false, a file will play continuously as the same stream, only sending an EOS when a deallocation occurs.
+
+When set to true, a file will play each iteration of the loop as a different stream, with an EOS occuring between each iteration. This allows simulation of a hardware device with a discontinuity of data. It also allows testing of a waveform's response to new streams.
+</description>
+      <value>false</value>
+    </simple>
     <simple id="AdvancedProperties::packetSize" name="packetSize" type="ulong">
       <description>The number of bytes in each packet used to cache the file data.  The default is about 90% of the default CORBA maximum transfer size.</description>
       <value>1887432</value>
