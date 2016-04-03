@@ -664,8 +664,6 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId,
                 continue;
             }
 
-            std::string streamId = getStreamId(tunerId);
-
             // If the update SRI flag is set, push the SRI packet
             if (container.updateSRI) {
                 container.sri = create(streamId,
@@ -764,8 +762,6 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId,
         }
 
         // Send the EOS at this point
-        container.sri.mode = container.fileReader->getComplex();
-
         pushSRI(container.sri);
 
         container.updateSRI = false;
