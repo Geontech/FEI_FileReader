@@ -189,24 +189,14 @@ bool FEI_FileReader_i::deviceSetTuning(
 
         FileReaderContainer &container = this->fileReaderContainers[tuner_id];
 
-        // Create a stream id if not already created for this file
-        std::string streamId = getStreamId(tuner_id);
-
-        // Enable multi-out capability
-        matchAllocationIdToStreamId(request.allocation_id, streamId, "");
-
         container.updateSRI = true;
 
         if (not container.thread) {
-            BULKIO::StreamSRI sri = create(streamId,
-                    this->frontend_tuner_status[tuner_id]);
-
-            pushSRI(sri);
-
             boost::mutex::scoped_lock lock(*container.lock);
 
             container.thread = new boost::thread(
-                    &FEI_FileReader_i::threadFunction, this, tuner_id);
+                    &FEI_FileReader_i::threadFunction, this, tuner_id,
+                    request.allocation_id);
         }
     }
 
@@ -237,8 +227,6 @@ bool FEI_FileReader_i::deviceDeleteTuning(
         delete container.thread;
         container.thread = NULL;
     }
-
-    fts.stream_id = "";
 
     return true;
 }
@@ -299,8 +287,6 @@ void FEI_FileReader_i::construct()
             &FEI_FileReader_i::AdvancedPropertiesChanged);
     addPropertyChangeListener("filePath", this,
             &FEI_FileReader_i::filePathChanged);
-    addPropertyChangeListener("loop", this,
-            &FEI_FileReader_i::loopChanged);
     addPropertyChangeListener("updateAvailableFiles", this,
             &FEI_FileReader_i::updateAvailableFilesChanged);
 
@@ -505,19 +491,6 @@ void FEI_FileReader_i::initializeOutputVectors()
 }
 
 /*
- * Set the looping value on all of the file readers
- */
-void FEI_FileReader_i::loopChanged(const bool *oldValue, const bool *newValue)
-{
-    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
-
-    for (FileReaderIterator i = this->fileReaderContainers.begin();
-            i != this->fileReaderContainers.end(); ++i) {
-        i->fileReader->setLoopingEnabled(*newValue);
-    }
-}
-
-/*
  * Given a file reader container, push packets to active ports
  */
 void FEI_FileReader_i::pushPacket(FileReaderContainer &container,
@@ -622,159 +595,198 @@ size_t FEI_FileReader_i::sizeFromType(const MetaFileType &type)
     return 0;
 }
 
-void FEI_FileReader_i::threadFunction(const size_t &tunerId)
+void FEI_FileReader_i::threadFunction(const size_t &tunerId,
+        const std::string &allocationId)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
     FileReaderContainer &container = this->fileReaderContainers[tunerId];
     boost::system_time firstSeen;
+    std::string oldStreamId;
     boost::posix_time::time_duration pushDelay, timeBetweenPackets;
     BULKIO::PrecisionUTCTime timestamp;
 
-    // Check to see if the channel is allocated before requesting a data
-    // packet
+    // This loop allows for EOS to be sent between loop iterations, if enabled
     while (true) {
-        if (boost::this_thread::interruption_requested()) {
-            break;
+        // Get a new stream ID
+        std::string streamId = getStreamId(tunerId);
+
+        // Clear the old connection table entries
+        if (not oldStreamId.empty()) {
+            removeStreamIdRouting(oldStreamId, allocationId);
         }
 
-        if (this->tuner_allocation_ids[tunerId].control_allocation_id.empty()
-                || not this->frontend_tuner_status[tunerId].enabled) {
-            boost::posix_time::time_duration
-                    timeToSleep(boost::posix_time::milliseconds(250));
+        // Enable multi-out capability
+        matchAllocationIdToStreamId(allocationId, streamId, "");
 
-            // Catch the exception to ensure EOS is sent
+        // Push initial SRI
+        container.sri = create(streamId,
+                this->frontend_tuner_status[tunerId]);
+
+        pushSRI(container.sri);
+
+        // Check to see if the channel is allocated before requesting a data
+        // packet
+        while (true) {
+            if (boost::this_thread::interruption_requested()) {
+                break;
+            }
+
+            if (this->tuner_allocation_ids[tunerId].control_allocation_id.
+                            empty()
+                    || not this->frontend_tuner_status[tunerId].enabled) {
+                boost::posix_time::time_duration
+                        timeToSleep(boost::posix_time::milliseconds(250));
+
+                // Catch the exception to ensure EOS is sent
+                try {
+                    boost::this_thread::sleep(timeToSleep);
+                } catch (boost::thread_interrupted &e) {
+                    break;
+                } catch(...) {
+                    LOG_WARN(FEI_FileReader_i, "An unexpected error" <<
+                            " occurred while thread waited to be enabled");
+                    break;
+                }
+
+                continue;
+            }
+
+            boost::mutex::scoped_lock lock(*container.lock);
+
+            container.currentPacket = container.
+                    fileReader->getNextPacket(
+                            this->AdvancedProperties.packetSize);
+
+            if (container.currentPacket.data == NULL) {
+                LOG_WARN(FEI_FileReader_i, "Got NULL data for tuner " <<
+                        "number " << tunerId);
+                continue;
+            }
+
+            std::string streamId = getStreamId(tunerId);
+
+            // If the update SRI flag is set, push the SRI packet
+            if (container.updateSRI) {
+                container.sri = create(streamId,
+                        this->frontend_tuner_status[tunerId]);
+                container.sri.mode = container.fileReader->getComplex();
+
+                double fileSampleRate = this->frontend_tuner_status[tunerId].
+                                            sample_rate;
+
+                if (this->AdvancedProperties.sampleRateForSRI) {
+                    if (fileSampleRate >
+                            this->AdvancedProperties.maxOutputRate) {
+                        fileSampleRate =
+                                this->AdvancedProperties.maxOutputRate;
+                    } else if (fileSampleRate <
+                            this->AdvancedProperties.minOutputRate) {
+                        fileSampleRate =
+                                this->AdvancedProperties.minOutputRate;
+                    }
+                }
+
+                container.sri.xdelta = 1.0 / fileSampleRate;
+
+                pushSRI(container.sri);
+
+                container.updateSRI = false;
+            }
+
+            // Get the current time for keeping track of when to push
+            firstSeen = boost::get_system_time();
+            timestamp = bulkio::time::utils::now();
+
+            // Calculate the time duration for this packet based on the
+            // number of samples, the requested sample rate, and the complexity
+            size_t bytes = container.currentPacket.dataSize;
+
+            size_t samples = bytes / container.typeSize;
+
+            if (container.fileReader->getComplex()) {
+                samples /= 2;
+            }
+
+            double sampleRate = this->frontend_tuner_status[tunerId].
+                                            sample_rate;
+
+            if (sampleRate > this->AdvancedProperties.maxOutputRate) {
+                sampleRate = this->AdvancedProperties.maxOutputRate;
+            } else if (sampleRate < this->AdvancedProperties.minOutputRate) {
+                sampleRate = this->AdvancedProperties.minOutputRate;
+            }
+
+            double timeDuration = samples / sampleRate;
+            int seconds = timeDuration;
+            int fractional = this->fractionalResolution *
+                    (timeDuration - seconds);
+
+            timeBetweenPackets = boost::posix_time::time_duration(0, 0,
+                    seconds, fractional);
+
+            // Convert the packet now
+            convertAndCopy(container);
+
+            // Take note of the current time to calculate the pushPacket delay
+            boost::system_time prePushTime = boost::get_system_time();
+
+            pushPacket(container, timestamp, false, streamId);
+
+            pushDelay = (boost::get_system_time() - prePushTime);
+
+            lock.unlock();
+
+            if (container.currentPacket.lastPacket && not this->loop) {
+                LOG_DEBUG(FEI_FileReader_i, "Last packet and not looping");
+                break;
+            } else if (container.currentPacket.lastPacket &&
+                    this->AdvancedProperties.newStreamAfterLoop) {
+                LOG_DEBUG(FEI_FileReader_i, "Last packet and new stream");
+                break;
+            }
+
+            boost::posix_time::time_duration timeToWait =
+                    timeBetweenPackets -
+                    (boost::get_system_time() - firstSeen) -
+                    pushDelay;
+
+            // Catch the exception to ensure the EOS is sent
             try {
-                boost::this_thread::sleep(timeToSleep);
+                boost::this_thread::sleep(timeToWait);
             } catch (boost::thread_interrupted &e) {
                 break;
             } catch(...) {
                 LOG_WARN(FEI_FileReader_i, "An unexpected error occurred" <<
-                        " while thread waited to be enabled");
+                        " while thread waited for next push");
                 break;
             }
-
-            continue;
         }
 
-        boost::mutex::scoped_lock lock(*container.lock);
+        // Send the EOS at this point
+        container.sri.mode = container.fileReader->getComplex();
 
-        container.currentPacket = container.
-                fileReader->getNextPacket(this->AdvancedProperties.packetSize);
+        pushSRI(container.sri);
 
-        if (container.currentPacket.data == NULL) {
-            LOG_WARN(FEI_FileReader_i, "Got NULL data for tuner number " <<
-                    tunerId);
-            continue;
-        }
+        container.updateSRI = false;
 
-        std::string streamId = getStreamId(tunerId);
+        container.currentPacket = FilePacket();
 
-        // If the update SRI flag is set, push the SRI packet
-        if (container.updateSRI) {
-            container.sri = create(streamId,
-                    this->frontend_tuner_status[tunerId]);
-            container.sri.mode = container.fileReader->getComplex();
+        BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
 
-            double fileSampleRate = this->frontend_tuner_status[tunerId].
-                                        sample_rate;
+        pushPacket(container, T, true, streamId);
 
-            if (this->AdvancedProperties.sampleRateForSRI) {
-                if (fileSampleRate > this->AdvancedProperties.maxOutputRate) {
-                    fileSampleRate = this->AdvancedProperties.maxOutputRate;
-                } else if (fileSampleRate < this->AdvancedProperties.minOutputRate) {
-                    fileSampleRate = this->AdvancedProperties.minOutputRate;
-                }
-            }
+        this->frontend_tuner_status[tunerId].stream_id = "";
 
-            container.sri.xdelta = 1.0 / fileSampleRate;
-
-            pushSRI(container.sri);
-
-            container.updateSRI = false;
-        }
-
-        // Get the current time for keeping track of when to push
-        firstSeen = boost::get_system_time();
-        timestamp = bulkio::time::utils::now();
-
-        // Calculate the time duration for this packet based on the
-        // number of samples, the requested sample rate, and the complexity
-        size_t bytes = container.currentPacket.dataSize;
-
-        size_t samples = bytes / container.typeSize;
-
-        if (container.fileReader->getComplex()) {
-            samples /= 2;
-        }
-
-        double sampleRate = this->frontend_tuner_status[tunerId].
-                                        sample_rate;
-
-        if (sampleRate > this->AdvancedProperties.maxOutputRate) {
-            sampleRate = this->AdvancedProperties.maxOutputRate;
-        } else if (sampleRate < this->AdvancedProperties.minOutputRate) {
-            sampleRate = this->AdvancedProperties.minOutputRate;
-        }
-
-        double timeDuration = samples / sampleRate;
-        int seconds = timeDuration;
-        int fractional = this->fractionalResolution *
-                (timeDuration - seconds);
-
-        timeBetweenPackets = boost::posix_time::time_duration(0, 0, seconds,
-                fractional);
-
-        // Convert the packet now
-        convertAndCopy(container);
-
-        // Take note of the current time to calculate the pushPacket delay
-        boost::system_time prePushTime = boost::get_system_time();
-
-        pushPacket(container, timestamp, false, streamId);
-
-        pushDelay = (boost::get_system_time() - prePushTime);
-
-        lock.unlock();
-
-        if (container.currentPacket.lastPacket && not this->loop) {
-            LOG_DEBUG(FEI_FileReader_i, "Last packet");
+        // Break if necessary
+        if (boost::this_thread::interruption_requested() ||
+                not this->AdvancedProperties.newStreamAfterLoop) {
             break;
         }
 
-        boost::posix_time::time_duration timeToWait =
-                timeBetweenPackets -
-                (boost::get_system_time() - firstSeen) -
-                pushDelay;
-
-        // Catch the exception to ensure the EOS is sent
-        try {
-            boost::this_thread::sleep(timeToWait);
-        } catch (boost::thread_interrupted &e) {
-            break;
-        } catch(...) {
-            LOG_WARN(FEI_FileReader_i, "An unexpected error occurred" <<
-                    " while thread waited for next push");
-            break;
-        }
+        // Save the old stream ID for cleaning up the connection table
+        oldStreamId = streamId;
     }
-
-    // Send the EOS at this point
-    std::string streamId = getStreamId(tunerId);
-    BULKIO::StreamSRI sri = create(streamId,
-                                    this->frontend_tuner_status[tunerId]);
-
-    sri.mode = container.fileReader->getComplex();
-
-    pushSRI(sri);
-
-    container.updateSRI = false;
-
-    container.currentPacket = FilePacket();
-
-    BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
-
-    pushPacket(container, T, true, streamId);
 }
 
 /*
@@ -936,7 +948,6 @@ void FEI_FileReader_i::updateFileReaders()
             newFileReader = new FormattedFileReader;
 
             newFileReader->setFilePath(this->availableFiles[id].path);
-            newFileReader->setLoopingEnabled(this->loop);
             newFileReader->setPacketSize(this->AdvancedProperties.packetSize);
 
             container.fileReader = newFileReader;

@@ -19,6 +19,7 @@ struct AdvancedProperties_struct {
     {
         maxOutputRate = 1e12;
         minOutputRate = 1.0;
+        newStreamAfterLoop = false;
         packetSize = 1887432;
         sampleRateForSRI = false;
     };
@@ -29,6 +30,7 @@ struct AdvancedProperties_struct {
 
     double maxOutputRate;
     double minOutputRate;
+    bool newStreamAfterLoop;
     CORBA::ULong packetSize;
     bool sampleRateForSRI;
 };
@@ -48,6 +50,14 @@ inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
         }
         else if (!strcmp("AdvancedProperties::minOutputRate", props[idx].id)) {
             if (!(props[idx].value >>= s.minOutputRate)) {
+                CORBA::TypeCode_var typecode = props[idx].value.type();
+                if (typecode->kind() != CORBA::tk_null) {
+                    return false;
+                }
+            }
+        }
+        else if (!strcmp("AdvancedProperties::newStreamAfterLoop", props[idx].id)) {
+            if (!(props[idx].value >>= s.newStreamAfterLoop)) {
                 CORBA::TypeCode_var typecode = props[idx].value.type();
                 if (typecode->kind() != CORBA::tk_null) {
                     return false;
@@ -76,15 +86,17 @@ inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
 
 inline void operator<<= (CORBA::Any& a, const AdvancedProperties_struct& s) {
     CF::Properties props;
-    props.length(4);
+    props.length(5);
     props[0].id = CORBA::string_dup("AdvancedProperties::maxOutputRate");
     props[0].value <<= s.maxOutputRate;
     props[1].id = CORBA::string_dup("AdvancedProperties::minOutputRate");
     props[1].value <<= s.minOutputRate;
-    props[2].id = CORBA::string_dup("AdvancedProperties::packetSize");
-    props[2].value <<= s.packetSize;
-    props[3].id = CORBA::string_dup("AdvancedProperties::sampleRateForSRI");
-    props[3].value <<= s.sampleRateForSRI;
+    props[2].id = CORBA::string_dup("AdvancedProperties::newStreamAfterLoop");
+    props[2].value <<= s.newStreamAfterLoop;
+    props[3].id = CORBA::string_dup("AdvancedProperties::packetSize");
+    props[3].value <<= s.packetSize;
+    props[4].id = CORBA::string_dup("AdvancedProperties::sampleRateForSRI");
+    props[4].value <<= s.sampleRateForSRI;
     a <<= props;
 };
 
@@ -92,6 +104,8 @@ inline bool operator== (const AdvancedProperties_struct& s1, const AdvancedPrope
     if (s1.maxOutputRate!=s2.maxOutputRate)
         return false;
     if (s1.minOutputRate!=s2.minOutputRate)
+        return false;
+    if (s1.newStreamAfterLoop!=s2.newStreamAfterLoop)
         return false;
     if (s1.packetSize!=s2.packetSize)
         return false;

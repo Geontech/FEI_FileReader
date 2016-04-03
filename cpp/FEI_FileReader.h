@@ -109,8 +109,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const std::string *oldValue,
                 const std::string *newValue);
 
-        void loopChanged(const bool *oldValue, const bool *newValue);
-
         void updateAvailableFilesChanged(
                 const bool *oldValue,
                 const bool *newValue);
@@ -163,7 +161,9 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         size_t sizeFromType(const MetaFileType &type);
 
-        void threadFunction(const size_t &tunerId);
+        void threadFunction(
+                const size_t &tunerId,
+                const std::string &allocationId);
 
         const MetaFileType typeFromTypeInfo(const std::type_info &typeInfo);
 
