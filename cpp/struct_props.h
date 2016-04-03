@@ -18,8 +18,10 @@ typedef bulkio::connection_descriptor_struct connection_descriptor_struct;
 struct AdvancedProperties_struct {
     AdvancedProperties_struct ()
     {
-        maxOutputRate = 0.0;
+        maxOutputRate = 1e12;
+        minOutputRate = 1.0;
         packetSize = 1887432;
+        sampleRateForSRI = false;
     };
 
     static std::string getId() {
@@ -27,7 +29,9 @@ struct AdvancedProperties_struct {
     };
 
     double maxOutputRate;
+    double minOutputRate;
     CORBA::ULong packetSize;
+    bool sampleRateForSRI;
 };
 
 inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
@@ -37,8 +41,14 @@ inline bool operator>>= (const CORBA::Any& a, AdvancedProperties_struct& s) {
     if (props.contains("AdvancedProperties::maxOutputRate")) {
         if (!(props["AdvancedProperties::maxOutputRate"] >>= s.maxOutputRate)) return false;
     }
+    if (props.contains("AdvancedProperties::minOutputRate")) {
+        if (!(props["AdvancedProperties::minOutputRate"] >>= s.minOutputRate)) return false;
+    }
     if (props.contains("AdvancedProperties::packetSize")) {
         if (!(props["AdvancedProperties::packetSize"] >>= s.packetSize)) return false;
+    }
+    if (props.contains("AdvancedProperties::sampleRateForSRI")) {
+        if (!(props["AdvancedProperties::sampleRateForSRI"] >>= s.sampleRateForSRI)) return false;
     }
     return true;
 }
@@ -48,14 +58,22 @@ inline void operator<<= (CORBA::Any& a, const AdvancedProperties_struct& s) {
  
     props["AdvancedProperties::maxOutputRate"] = s.maxOutputRate;
  
+    props["AdvancedProperties::minOutputRate"] = s.minOutputRate;
+ 
     props["AdvancedProperties::packetSize"] = s.packetSize;
+ 
+    props["AdvancedProperties::sampleRateForSRI"] = s.sampleRateForSRI;
     a <<= props;
 }
 
 inline bool operator== (const AdvancedProperties_struct& s1, const AdvancedProperties_struct& s2) {
     if (s1.maxOutputRate!=s2.maxOutputRate)
         return false;
+    if (s1.minOutputRate!=s2.minOutputRate)
+        return false;
     if (s1.packetSize!=s2.packetSize)
+        return false;
+    if (s1.sampleRateForSRI!=s2.sampleRateForSRI)
         return false;
     return true;
 }

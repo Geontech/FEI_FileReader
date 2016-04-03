@@ -123,13 +123,25 @@ False: Does not need control and can just attach to any currently tasked device 
     <description>Advanced properties for configuring the file reader.</description>
     <simple id="AdvancedProperties::maxOutputRate" name="maxOutputRate" type="double">
       <description>The maximum rate at which to push samples.  This can differ from the sample rate at which the file was taken to slow down streams which have a sample rate greater than the maximum output rate.</description>
-      <value>0.0</value>
+      <value>1e12</value>
+      <units>Sps</units>
+    </simple>
+    <simple id="AdvancedProperties::minOutputRate" name="minOutputRate" type="double">
+      <description>The minimum rate at which to push samples.  This can differ from the sample rate at which the file was taken to speed up streams which have a sample rate less than the minimum output rate.</description>
+      <value>1.0</value>
       <units>Sps</units>
     </simple>
     <simple id="AdvancedProperties::packetSize" name="packetSize" type="ulong">
       <description>The number of bytes in each packet used to cache the file data.  The default is about 90% of the default CORBA maximum transfer size.</description>
       <value>1887432</value>
       <units>bytes</units>
+    </simple>
+    <simple id="AdvancedProperties::sampleRateForSRI" name="sampleRateForSRI" type="boolean">
+      <description>When set to true, calculate the SRI xdelta value from the sample rate being used. This allows runtime control of the file's sample rate.
+
+When not set, if the current sample rate is less than specified for the file, then data underflow will occur. If the current sample rate is greater than specified for the file, then data overflow will eventually occur.
+      </description>
+      <value>false</value>
     </simple>
     <configurationkind kindtype="property"/>
   </struct>

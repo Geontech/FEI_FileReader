@@ -240,7 +240,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
         std::vector<FileReaderContainer> fileReaderContainers;
         uint64_t fractionalResolution;
         frontend::RFInfoPkt rfInfoPkt;
-        bool useMaxOutputRate;
 };
 
 #include "FEI_FileReader_template.h"

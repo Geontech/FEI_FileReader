@@ -22,8 +22,7 @@ PREPARE_LOGGING(FEI_FileReader_i)
 FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl),
-    fractionalResolution(1),
-    useMaxOutputRate(false)
+    fractionalResolution(1)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 }
@@ -34,8 +33,7 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
 FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl, char *compDev) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, compDev),
-    fractionalResolution(1),
-    useMaxOutputRate(false)
+    fractionalResolution(1)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 }
@@ -47,8 +45,7 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl,
                                     CF::Properties capacities) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities),
-    fractionalResolution(1),
-    useMaxOutputRate(false)
+    fractionalResolution(1)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 }
@@ -60,8 +57,7 @@ FEI_FileReader_i::FEI_FileReader_i(char *devMgr_ior, char *id, char *lbl,
                                     char *sftwrPrfl,
                                     CF::Properties capacities, char *compDev) :
     FEI_FileReader_base(devMgr_ior, id, lbl, sftwrPrfl, capacities, compDev),
-    fractionalResolution(1),
-    useMaxOutputRate(false)
+    fractionalResolution(1)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 }
@@ -259,6 +255,15 @@ void FEI_FileReader_i::AdvancedPropertiesChanged(
                 "reverting");
         this->AdvancedProperties = *oldValue;
     }
+
+    // Update all SRI values
+    if (newValue->maxOutputRate != oldValue->maxOutputRate ||
+            newValue->minOutputRate != oldValue->minOutputRate ||
+            newValue->sampleRateForSRI != oldValue->sampleRateForSRI) {
+        for (size_t i = 0; i < this->fileReaderContainers.size(); ++i) {
+            this->fileReaderContainers[i].updateSRI = true;
+        }
+    }
 }
 
 /*
@@ -311,9 +316,6 @@ void FEI_FileReader_i::constructor()
     this->rfInfoPkt.rf_center_freq = 50e9;
     this->rfInfoPkt.rf_bandwidth = 100e9;
     this->rfInfoPkt.if_center_freq = 0;
-
-    // Initialize the use max output rate to false
-    this->useMaxOutputRate = false;
 }
 
 /*
@@ -561,10 +563,24 @@ bool FEI_FileReader_i::setAdvancedProperties(const AdvancedProperties_struct &ne
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if ((long)newValue.maxOutputRate == 0) {
-        this->useMaxOutputRate = false;
-    } else {
-        this->useMaxOutputRate = true;
+    // Verify the requested rates are valid
+    if ((long) newValue.maxOutputRate <= 0) {
+        LOG_WARN(FEI_FileReader_i, "Maximum sample rate must be greater " <<
+                "than 0, setting to 1");
+        this->AdvancedProperties.maxOutputRate = 1;
+    }
+    
+    if ((long) newValue.minOutputRate <= 0) {
+        LOG_WARN(FEI_FileReader_i, "Minimum sample rate must be greater " <<
+                "than 0, setting to 1");
+        this->AdvancedProperties.minOutputRate = 1;
+    }
+
+    if (newValue.minOutputRate > newValue.maxOutputRate) {
+        LOG_WARN(FEI_FileReader_i, "Minimum sample rate must be less than " <<
+                "or equal to the maximum sample rate, reverting");
+        this->AdvancedProperties.minOutputRate =
+        		this->AdvancedProperties.maxOutputRate;
     }
 
     setPacketSizes(newValue.packetSize);
@@ -702,6 +718,32 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId)
             continue;
         }
 
+        std::string streamId = getStreamId(tunerId);
+
+        // If the update SRI flag is set, push the SRI packet
+        if (container.updateSRI) {
+            container.sri = create(streamId,
+                    this->frontend_tuner_status[tunerId]);
+            container.sri.mode = container.fileReader->getComplex();
+
+            double fileSampleRate = this->frontend_tuner_status[tunerId].
+                                        sample_rate;
+
+            if (this->AdvancedProperties.sampleRateForSRI) {
+                if (fileSampleRate > this->AdvancedProperties.maxOutputRate) {
+                    fileSampleRate = this->AdvancedProperties.maxOutputRate;
+                } else if (fileSampleRate < this->AdvancedProperties.minOutputRate) {
+                    fileSampleRate = this->AdvancedProperties.minOutputRate;
+                }
+            }
+
+            container.sri.xdelta = 1.0 / fileSampleRate;
+
+            pushSRI(container.sri);
+
+            container.updateSRI = false;
+        }
+
         // Get the current time for keeping track of when to push
         firstSeen = boost::get_system_time();
         timestamp = bulkio::time::utils::now();
@@ -717,11 +759,12 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId)
         }
 
         double sampleRate = this->frontend_tuner_status[tunerId].
-                                    sample_rate;
+                                        sample_rate;
 
-        if (this->useMaxOutputRate &&
-                sampleRate > this->AdvancedProperties.maxOutputRate) {
+        if (sampleRate > this->AdvancedProperties.maxOutputRate) {
             sampleRate = this->AdvancedProperties.maxOutputRate;
+        } else if (sampleRate < this->AdvancedProperties.minOutputRate) {
+            sampleRate = this->AdvancedProperties.minOutputRate;
         }
 
         double timeDuration = samples / sampleRate;
@@ -735,19 +778,6 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId)
         // Convert the packet now
         convertAndCopy(container);
 
-        std::string streamId = getStreamId(tunerId);
-
-        // If the update SRI flag is set, push the SRI packet
-        if (container.updateSRI) {
-            BULKIO::StreamSRI sri = create(streamId,
-                    this->frontend_tuner_status[tunerId]);
-            sri.mode = container.fileReader->getComplex();
-
-            pushSRI(sri);
-
-            container.updateSRI = false;
-        }
-
         // Take note of the current time to calculate the pushPacket delay
         boost::system_time prePushTime = boost::get_system_time();
 
@@ -758,6 +788,7 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId)
         lock.unlock();
 
         if (container.currentPacket.lastPacket && not this->loop) {
+            LOG_DEBUG(FEI_FileReader_i, "Last packet");
             break;
         }
 
