@@ -145,7 +145,8 @@ class FEI_FileReader_i : public FEI_FileReader_base
         template <typename PORT_TYPE, typename IN_TYPE>
         void pushPacketIfActive(
                 PORT_TYPE *port,
-                std::vector<IN_TYPE> &data,
+                const IN_TYPE *data,
+                size_t dataSize,
                 BULKIO::PrecisionUTCTime &T, bool EOS,
                 const std::string &streamID);
 

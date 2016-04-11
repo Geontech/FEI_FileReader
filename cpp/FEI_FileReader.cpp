@@ -531,7 +531,8 @@ void FEI_FileReader_i::pushSRI(BULKIO::StreamSRI &sri)
 /*
  * Set the AdvancedProperties member
  */
-bool FEI_FileReader_i::setAdvancedProperties(const AdvancedProperties_struct &newValue)
+bool FEI_FileReader_i::setAdvancedProperties(
+        const AdvancedProperties_struct &newValue)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
@@ -678,8 +679,8 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId,
                 } catch (boost::thread_interrupted &e) {
                     break;
                 } catch(...) {
-                    LOG_WARN(FEI_FileReader_i, "An unexpected error occurred" <<
-                            " while thread waited to be enabled");
+                    LOG_WARN(FEI_FileReader_i, "An unexpected error" <<
+                            " occurred while thread waited to be enabled");
                     break;
                 }
 
@@ -800,7 +801,8 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId,
 
         container.updateSRI = false;
 
-        container.currentPacket = FilePacket();
+        // Set the data size to zero for the EOS packet
+        container.currentPacket.dataSize = 0;
 
         BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
 
