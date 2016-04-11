@@ -766,7 +766,8 @@ void FEI_FileReader_i::threadFunction(const size_t &tunerId,
 
         container.updateSRI = false;
 
-        container.currentPacket = FilePacket();
+        // Set the data size to zer for the EOS packet
+        container.currentPacket.dataSize = 0;
 
         BULKIO::PrecisionUTCTime T = bulkio::time::utils::now();
 
