@@ -117,6 +117,8 @@ int FEI_FileReader_i::serviceFunction()
         this->filePath = oldValue;
     }
 
+    delete pkt;
+
     return NORMAL;
 }
 
