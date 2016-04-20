@@ -97,7 +97,25 @@ int FEI_FileReader_i::serviceFunction()
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    return NOOP;
+    bulkio::InFilePort::DataTransferType *pkt = this->dataFile_in->
+            getPacket(bulkio::Const::BLOCKING);
+
+    if (not pkt) {
+        return NOOP;
+    }
+
+    // Attempt to set the new file path
+    std::string oldValue = this->filePath;
+    this->filePath = pkt->dataBuffer;
+
+    if (not setFilePath(this->filePath)) {
+        LOG_WARN(FEI_FileReader_i, "Unable to set file path, reverting");
+        this->filePath = oldValue;
+    }
+
+    delete pkt;
+
+    return NORMAL;
 }
 
 /*
