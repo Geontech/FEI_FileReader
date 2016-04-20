@@ -51,6 +51,7 @@ class FEI_FileReader_base : public frontend::FrontendTunerDevice<frontend_tuner_
         // Ports
         frontend::InRFInfoPort *RFInfo_in;
         frontend::InDigitalTunerPort *DigitalTuner_in;
+        bulkio::InFilePort *dataFile_in;
         bulkio::OutCharPort *dataChar_out;
         bulkio::OutOctetPort *dataOctet_out;
         bulkio::OutShortPort *dataShort_out;

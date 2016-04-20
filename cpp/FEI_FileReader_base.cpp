@@ -44,6 +44,8 @@ FEI_FileReader_base::~FEI_FileReader_base()
     RFInfo_in = 0;
     delete DigitalTuner_in;
     DigitalTuner_in = 0;
+    delete dataFile_in;
+    dataFile_in = 0;
     delete dataChar_out;
     dataChar_out = 0;
     delete dataOctet_out;
@@ -74,6 +76,8 @@ void FEI_FileReader_base::construct()
     addPort("RFInfo_in", RFInfo_in);
     DigitalTuner_in = new frontend::InDigitalTunerPort("DigitalTuner_in", this);
     addPort("DigitalTuner_in", DigitalTuner_in);
+    dataFile_in = new bulkio::InFilePort("dataFile_in");
+    addPort("dataFile_in", dataFile_in);
     dataChar_out = new bulkio::OutCharPort("dataChar_out");
     addPort("dataChar_out", dataChar_out);
     dataOctet_out = new bulkio::OutOctetPort("dataOctet_out");

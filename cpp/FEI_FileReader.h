@@ -158,6 +158,8 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         void pushSRI(BULKIO::StreamSRI &sri);
 
+        bool setFilePath(const std::string &newValue);
+
         void setPacketSizes(size_t packetSize);
 
         size_t sizeFromType(const MetaFileType &type);

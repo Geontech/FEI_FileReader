@@ -101,7 +101,23 @@ int FEI_FileReader_i::serviceFunction()
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    return NOOP;
+    bulkio::InFilePort::DataTransferType *pkt = this->dataFile_in->
+            getPacket(bulkio::Const::BLOCKING);
+
+    if (not pkt) {
+        return NOOP;
+    }
+
+    // Attempt to set the new file path
+    std::string oldValue = this->filePath;
+    this->filePath = pkt->dataBuffer;
+
+    if (not setFilePath(this->filePath)) {
+        LOG_WARN(FEI_FileReader_i, "Unable to set file path, reverting");
+        this->filePath = oldValue;
+    }
+
+    return NORMAL;
 }
 
 /*
@@ -382,23 +398,17 @@ void FEI_FileReader_i::convertAndCopy(FileReaderContainer &container)
 }
 
 /*
- * If the new file path exists, set the new file path appropriately
+ * Attempt to set the new file path
  */
 void FEI_FileReader_i::filePathChanged(const std::string *oldValue,
         const std::string *newValue)
 {
     LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
 
-    if (not boost::filesystem::exists(*newValue)) {
-        LOG_WARN(FEI_FileReader_i, "Invalid file path");
+    if (not setFilePath(*newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Unable to set file path, reverting");
         this->filePath = *oldValue;
-        return;
     }
-
-    updateAvailableFilesVector();
-
-    LOG_DEBUG(FEI_FileReader_i, "Found " <<
-            this->fileReaderContainers.size() << " files to read");
 }
 
 /*
@@ -544,6 +554,26 @@ void FEI_FileReader_i::pushSRI(BULKIO::StreamSRI &sri)
     this->dataLongLong_out->pushSRI(sri);
     this->dataUlongLong_out->pushSRI(sri);
     this->dataDouble_out->pushSRI(sri);
+}
+
+/*
+ * If the new file path exists, set the new file path appropriately
+ */
+bool FEI_FileReader_i::setFilePath(const std::string &newValue)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (not boost::filesystem::exists(newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Invalid file path");
+        return false;
+    }
+
+    updateAvailableFilesVector();
+
+    LOG_DEBUG(FEI_FileReader_i, "Found " <<
+            this->fileReaderContainers.size() << " files to read");
+
+    return true;
 }
 
 /*
