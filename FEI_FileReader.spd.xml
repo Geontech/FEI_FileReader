@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE softpkg PUBLIC "-//JTRS//DTD SCA V2.2.2 SPD//EN" "softpkg.dtd">
-<softpkg id="DCE:17ceeb8a-fb20-43ff-b28a-732ce57a3183" name="FEI_FileReader" type="2.0.0">
+<softpkg id="DCE:17ceeb8a-fb20-43ff-b28a-732ce57a3183" name="FEI_FileReader" type="2.0.1">
   <title></title>
   <author>
     <name>null</name>

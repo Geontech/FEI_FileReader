@@ -18,6 +18,9 @@
       <provides repid="IDL:FRONTEND/DigitalTuner:1.0" providesname="DigitalTuner_in">
         <porttype type="control"/>
       </provides>
+      <provides repid="IDL:BULKIO/dataFile:1.0" providesname="dataFile_in">
+        <porttype type="data"/>
+      </provides>
       <uses repid="IDL:BULKIO/dataChar:1.0" usesname="dataChar_out">
         <porttype type="data"/>
       </uses>
@@ -111,6 +114,10 @@
       <inheritsinterface repid="IDL:BULKIO/updateSRI:1.0"/>
     </interface>
     <interface name="dataDouble" repid="IDL:BULKIO/dataDouble:1.0">
+      <inheritsinterface repid="IDL:BULKIO/ProvidesPortStatisticsProvider:1.0"/>
+      <inheritsinterface repid="IDL:BULKIO/updateSRI:1.0"/>
+    </interface>
+    <interface name="dataFile" repid="IDL:BULKIO/dataFile:1.0">
       <inheritsinterface repid="IDL:BULKIO/ProvidesPortStatisticsProvider:1.0"/>
       <inheritsinterface repid="IDL:BULKIO/updateSRI:1.0"/>
     </interface>
