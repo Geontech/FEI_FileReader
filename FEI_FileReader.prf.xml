@@ -19,6 +19,18 @@
       <simple id="FRONTEND::tuner_status::allocation_id_csv" name="allocation_id_csv" type="string">
         <description>Comma separated list of current Allocation IDs.</description>
       </simple>
+      <simple id="FRONTEND::tuner_status::available_bandwidth" name="available_bandwidth" type="string">
+        <description>Available bandwidth (Hz) in range (XX-YY) or csv (X,Y,Z) format. Do not put units in field.</description>
+        <units>Hz</units>
+      </simple>
+      <simple id="FRONTEND::tuner_status::available_frequency" name="available_frequency" type="string">
+        <description>Available frequencies (Hz) in range (XX-YY) or csv (X,Y,Z) format. Do not put units in field.</description>
+        <units>Hz</units>
+      </simple>
+      <simple id="FRONTEND::tuner_status::available_sample_rate" name="available_sample_rate" type="string">
+        <description>Available sample_rate (sps) in range (XX-YY) or csv (X,Y,Z) format. Do not put units in field.</description>
+        <units>sps</units>
+      </simple>
       <simple id="FRONTEND::tuner_status::bandwidth" name="bandwidth" type="double">
         <description>Current bandwidth in Hz</description>
         <units>Hz</units>
@@ -40,11 +52,11 @@
         <description>Current sample rate in samples per second.</description>
         <units>sps</units>
       </simple>
-      <simple id="FRONTEND::tuner_status::tuner_type" name="tuner_type" type="string">
-        <description>Example Tuner Types: TX, RX, CHANNELIZER, DDC, RX_DIGITIZER, RX_DIGTIZIER_CHANNELIZER</description>
-      </simple>
       <simple id="FRONTEND::tuner_status::stream_id" name="stream_id" type="string">
         <description>Stream ID associated with tuner/allocation</description>
+      </simple>
+      <simple id="FRONTEND::tuner_status::tuner_type" name="tuner_type" type="string">
+        <description>Example Tuner Types: TX, RX, CHANNELIZER, DDC, RX_DIGITIZER, RX_DIGTIZIER_CHANNELIZER</description>
       </simple>
     </struct>
     <configurationkind kindtype="property"/>

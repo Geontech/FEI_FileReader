@@ -100,6 +100,9 @@ struct frontend_tuner_status_struct_struct : public frontend::default_frontend_t
         return std::string("FRONTEND::tuner_status_struct");
     };
 
+    std::string available_bandwidth;
+    std::string available_frequency;
+    std::string available_sample_rate;
     std::string stream_id;
 };
 
@@ -109,6 +112,15 @@ inline bool operator>>= (const CORBA::Any& a, frontend_tuner_status_struct_struc
     const redhawk::PropertyMap& props = redhawk::PropertyMap::cast(*temp);
     if (props.contains("FRONTEND::tuner_status::allocation_id_csv")) {
         if (!(props["FRONTEND::tuner_status::allocation_id_csv"] >>= s.allocation_id_csv)) return false;
+    }
+    if (props.contains("FRONTEND::tuner_status::available_bandwidth")) {
+        if (!(props["FRONTEND::tuner_status::available_bandwidth"] >>= s.available_bandwidth)) return false;
+    }
+    if (props.contains("FRONTEND::tuner_status::available_frequency")) {
+        if (!(props["FRONTEND::tuner_status::available_frequency"] >>= s.available_frequency)) return false;
+    }
+    if (props.contains("FRONTEND::tuner_status::available_sample_rate")) {
+        if (!(props["FRONTEND::tuner_status::available_sample_rate"] >>= s.available_sample_rate)) return false;
     }
     if (props.contains("FRONTEND::tuner_status::bandwidth")) {
         if (!(props["FRONTEND::tuner_status::bandwidth"] >>= s.bandwidth)) return false;
@@ -128,11 +140,11 @@ inline bool operator>>= (const CORBA::Any& a, frontend_tuner_status_struct_struc
     if (props.contains("FRONTEND::tuner_status::sample_rate")) {
         if (!(props["FRONTEND::tuner_status::sample_rate"] >>= s.sample_rate)) return false;
     }
-    if (props.contains("FRONTEND::tuner_status::tuner_type")) {
-        if (!(props["FRONTEND::tuner_status::tuner_type"] >>= s.tuner_type)) return false;
-    }
     if (props.contains("FRONTEND::tuner_status::stream_id")) {
         if (!(props["FRONTEND::tuner_status::stream_id"] >>= s.stream_id)) return false;
+    }
+    if (props.contains("FRONTEND::tuner_status::tuner_type")) {
+        if (!(props["FRONTEND::tuner_status::tuner_type"] >>= s.tuner_type)) return false;
     }
     return true;
 }
@@ -141,6 +153,12 @@ inline void operator<<= (CORBA::Any& a, const frontend_tuner_status_struct_struc
     redhawk::PropertyMap props;
  
     props["FRONTEND::tuner_status::allocation_id_csv"] = s.allocation_id_csv;
+ 
+    props["FRONTEND::tuner_status::available_bandwidth"] = s.available_bandwidth;
+ 
+    props["FRONTEND::tuner_status::available_frequency"] = s.available_frequency;
+ 
+    props["FRONTEND::tuner_status::available_sample_rate"] = s.available_sample_rate;
  
     props["FRONTEND::tuner_status::bandwidth"] = s.bandwidth;
  
@@ -154,14 +172,20 @@ inline void operator<<= (CORBA::Any& a, const frontend_tuner_status_struct_struc
  
     props["FRONTEND::tuner_status::sample_rate"] = s.sample_rate;
  
-    props["FRONTEND::tuner_status::tuner_type"] = s.tuner_type;
- 
     props["FRONTEND::tuner_status::stream_id"] = s.stream_id;
+ 
+    props["FRONTEND::tuner_status::tuner_type"] = s.tuner_type;
     a <<= props;
 }
 
 inline bool operator== (const frontend_tuner_status_struct_struct& s1, const frontend_tuner_status_struct_struct& s2) {
     if (s1.allocation_id_csv!=s2.allocation_id_csv)
+        return false;
+    if (s1.available_bandwidth!=s2.available_bandwidth)
+        return false;
+    if (s1.available_frequency!=s2.available_frequency)
+        return false;
+    if (s1.available_sample_rate!=s2.available_sample_rate)
         return false;
     if (s1.bandwidth!=s2.bandwidth)
         return false;
@@ -175,9 +199,9 @@ inline bool operator== (const frontend_tuner_status_struct_struct& s1, const fro
         return false;
     if (s1.sample_rate!=s2.sample_rate)
         return false;
-    if (s1.tuner_type!=s2.tuner_type)
-        return false;
     if (s1.stream_id!=s2.stream_id)
+        return false;
+    if (s1.tuner_type!=s2.tuner_type)
         return false;
     return true;
 }

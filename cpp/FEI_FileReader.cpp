@@ -961,6 +961,26 @@ void FEI_FileReader_i::updateAvailableFilesVector()
                     container.fileReader->getBandwidth();
             container.bandwidth = container.fileReader->getBandwidth();
         }
+
+        // Set the frontend_tuner_status with the available bandwidth, center
+        // frequency, and sample rate using the CSV format with one entry each
+        std::stringstream sstream;
+
+        sstream << std::fixed <<
+                this->frontend_tuner_status[tunerId].bandwidth;
+        sstream >> this->frontend_tuner_status[tunerId].available_bandwidth;
+
+        sstream.clear();
+
+        sstream << std::fixed <<
+                this->frontend_tuner_status[tunerId].center_frequency;
+        sstream >> this->frontend_tuner_status[tunerId].available_frequency;
+
+        sstream.clear();
+
+        sstream << std::fixed <<
+                this->frontend_tuner_status[tunerId].sample_rate;
+        sstream >> this->frontend_tuner_status[tunerId].available_sample_rate;
     }
 }
 
