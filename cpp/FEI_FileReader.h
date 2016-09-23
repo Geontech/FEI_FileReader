@@ -9,6 +9,7 @@
  * A structure which includes extra data associated with a file reader
  */
 struct FileReaderContainer {
+    double bandwidth;
     FilePacket currentPacket;
     MetaFileReader *fileReader;
     boost::mutex *lock;
@@ -109,14 +110,12 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const std::string *oldValue,
                 const std::string *newValue);
 
-        void loopChanged(const bool *oldValue, const bool *newValue);
-
         void updateAvailableFilesChanged(
                 const bool *oldValue,
                 const bool *newValue);
 
         // Miscellaneous helper methods
-        void construct();
+        void constructor();
 
         void convertAndCopy(FileReaderContainer &container);
 
@@ -130,10 +129,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
         void convertAndCopyToAll(
                 FileReaderContainer &container,
                 std::vector<IN_TYPE> &data);
-
-        void fileReaderDisable(size_t tunerId);
-
-        void fileReaderEnable(size_t tunerId);
 
         std::string getStreamId(size_t tunerId);
 
@@ -150,7 +145,8 @@ class FEI_FileReader_i : public FEI_FileReader_base
         template <typename PORT_TYPE, typename IN_TYPE>
         void pushPacketIfActive(
                 PORT_TYPE *port,
-                std::vector<IN_TYPE> &data,
+                const IN_TYPE *data,
+                size_t dataSize,
                 BULKIO::PrecisionUTCTime &T, bool EOS,
                 const std::string &streamID);
 
@@ -163,11 +159,17 @@ class FEI_FileReader_i : public FEI_FileReader_base
 
         void pushSRI(BULKIO::StreamSRI &sri);
 
+        bool setAdvancedProperties(const AdvancedProperties_struct &newValue);
+
+        bool setFilePath(const std::string &newValue);
+
         void setPacketSizes(size_t packetSize);
 
         size_t sizeFromType(const MetaFileType &type);
 
-        void threadFunction(const size_t &tunerId);
+        void threadFunction(
+        		const size_t &tunerId,
+				const std::string &allocationId);
 
         const MetaFileType typeFromTypeInfo(const std::type_info &typeInfo);
 
@@ -237,7 +239,6 @@ class FEI_FileReader_i : public FEI_FileReader_base
         std::vector<FileReaderContainer> fileReaderContainers;
         uint64_t fractionalResolution;
         frontend::RFInfoPkt rfInfoPkt;
-        bool useMaxOutputRate;
 };
 
 #include "FEI_FileReader_template.h"

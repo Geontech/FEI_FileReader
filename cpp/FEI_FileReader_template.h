@@ -28,11 +28,11 @@ void FEI_FileReader_i::convertAndCopyPacket(PORT_TYPE *port,
  */
 template <typename PORT_TYPE, typename IN_TYPE>
 void FEI_FileReader_i::pushPacketIfActive(PORT_TYPE *port,
-        std::vector<IN_TYPE> &data, BULKIO::PrecisionUTCTime &T,
+        const IN_TYPE *data, size_t dataSize, BULKIO::PrecisionUTCTime &T,
         bool EOS, const std::string &streamID)
 {
     if (port->isActive()) {
-        port->pushPacket(data, T, EOS, streamID);
+        port->pushPacket(data, dataSize, T, EOS, streamID);
     }
 }
 

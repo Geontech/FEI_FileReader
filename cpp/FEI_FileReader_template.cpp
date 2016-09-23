@@ -174,26 +174,30 @@ void FEI_FileReader_i::pushPacketToAll<int8_t>(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataChar_out->pushPacket(container.charOutput, T, EOS, streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
+    this->dataChar_out->pushPacket(container.charOutput.data(), dataSize, T,
             EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
+
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -201,26 +205,30 @@ void FEI_FileReader_i::pushPacketToAll<uint8_t>(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataOctet_out->pushPacket(container.uCharOutput, T, EOS, streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
+    this->dataOctet_out->pushPacket(container.uCharOutput.data(), dataSize, T,
             EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                    dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -228,26 +236,30 @@ void FEI_FileReader_i::pushPacketToAll<int16_t>(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataShort_out->pushPacket(container.shortOutput, T, EOS, streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
+    this->dataShort_out->pushPacket(container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                    dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -256,26 +268,30 @@ void FEI_FileReader_i::pushPacketToAll<uint16_t>(
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataUshort_out->pushPacket(container.uShortOutput, T, EOS, streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
+    this->dataUshort_out->pushPacket(container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -283,26 +299,30 @@ void FEI_FileReader_i::pushPacketToAll<int32_t>(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataLong_out->pushPacket(container.longOutput, T, EOS, streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
+    this->dataLong_out->pushPacket(container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -311,26 +331,30 @@ void FEI_FileReader_i::pushPacketToAll<uint32_t>(
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataUlong_out->pushPacket(container.uLongOutput, T, EOS, streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
+    this->dataUlong_out->pushPacket(container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -338,26 +362,30 @@ void FEI_FileReader_i::pushPacketToAll<float>(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataFloat_out->pushPacket(container.floatOutput, T, EOS, streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
+    this->dataFloat_out->pushPacket(container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -365,27 +393,30 @@ void FEI_FileReader_i::pushPacketToAll<int64_t>(FileReaderContainer &container,
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataLongLong_out->pushPacket(container.longLongOutput, T, EOS,
-            streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
+    this->dataLongLong_out->pushPacket(container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -394,27 +425,29 @@ void FEI_FileReader_i::pushPacketToAll<uint64_t>(
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataUlongLong_out->pushPacket(container.uLongLongOutput, T, EOS,
-            streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataDouble_out, container.doubleOutput, T, EOS,
-            streamID);
+    this->dataUlongLong_out->pushPacket(container.uLongLongOutput.data(),
+            dataSize / sizeof(uint64_t), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataDouble_out, container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
 }
 
 template <>
@@ -423,25 +456,28 @@ void FEI_FileReader_i::pushPacketToAll<double>(
         BULKIO::PrecisionUTCTime &T, bool EOS,
         const std::string &streamID)
 {
-    this->dataDouble_out->pushPacket(container.doubleOutput, T, EOS,
-            streamID);
+    size_t dataSize = container.currentPacket.dataSize;
 
-    pushPacketIfActive(this->dataChar_out, container.charOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataOctet_out, container.uCharOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataShort_out, container.shortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUshort_out, container.uShortOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataLong_out, container.longOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataUlong_out, container.uLongOutput, T, EOS,
-            streamID);
-    pushPacketIfActive(this->dataFloat_out, container.floatOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput, T,
-            EOS, streamID);
-    pushPacketIfActive(this->dataUlongLong_out, container.uLongLongOutput, T,
+    this->dataDouble_out->pushPacket(container.doubleOutput.data(),
+            dataSize / sizeof(double), T, EOS, streamID);
+
+    pushPacketIfActive(this->dataChar_out, container.charOutput.data(),
+                dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataOctet_out, container.uCharOutput.data(),
+            dataSize, T, EOS, streamID);
+    pushPacketIfActive(this->dataShort_out, container.shortOutput.data(),
+            dataSize / sizeof(int16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUshort_out, container.uShortOutput.data(),
+            dataSize / sizeof(uint16_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataLong_out, container.longOutput.data(),
+            dataSize / sizeof(int32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlong_out, container.uLongOutput.data(),
+            dataSize / sizeof(uint32_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataFloat_out, container.floatOutput.data(),
+            dataSize / sizeof(float), T, EOS, streamID);
+    pushPacketIfActive(this->dataLongLong_out, container.longLongOutput.data(),
+            dataSize / sizeof(int64_t), T, EOS, streamID);
+    pushPacketIfActive(this->dataUlongLong_out,
+            container.uLongLongOutput.data(), dataSize / sizeof(uint64_t), T,
             EOS, streamID);
 }

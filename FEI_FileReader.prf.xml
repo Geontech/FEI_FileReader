@@ -4,14 +4,12 @@
   <simple id="DCE:cdc5ee18-7ceb-4ae6-bf4c-31f983179b4d" mode="readonly" name="device_kind" type="string">
     <description>This specifies the device kind</description>
     <value>FRONTEND::TUNER</value>
-    <kind kindtype="configure"/>
     <kind kindtype="allocation"/>
     <action type="eq"/>
   </simple>
   <simple id="DCE:0f99b2e4-9903-4631-9846-ff349d18ecfb" mode="readonly" name="device_model" type="string">
     <description> This specifies the specific device</description>
     <value>FILE</value>
-    <kind kindtype="configure"/>
     <kind kindtype="allocation"/>
     <action type="eq"/>
   </simple>
@@ -20,6 +18,18 @@
     <struct id="FRONTEND::tuner_status_struct" name="frontend_tuner_status_struct">
       <simple id="FRONTEND::tuner_status::allocation_id_csv" name="allocation_id_csv" type="string">
         <description>Comma separated list of current Allocation IDs.</description>
+      </simple>
+      <simple id="FRONTEND::tuner_status::available_bandwidth" name="available_bandwidth" type="string">
+        <description>Available bandwidth (Hz) in range (XX-YY) or csv (X,Y,Z) format. Do not put units in field.</description>
+        <units>Hz</units>
+      </simple>
+      <simple id="FRONTEND::tuner_status::available_frequency" name="available_frequency" type="string">
+        <description>Available frequencies (Hz) in range (XX-YY) or csv (X,Y,Z) format. Do not put units in field.</description>
+        <units>Hz</units>
+      </simple>
+      <simple id="FRONTEND::tuner_status::available_sample_rate" name="available_sample_rate" type="string">
+        <description>Available sample_rate (sps) in range (XX-YY) or csv (X,Y,Z) format. Do not put units in field.</description>
+        <units>sps</units>
       </simple>
       <simple id="FRONTEND::tuner_status::bandwidth" name="bandwidth" type="double">
         <description>Current bandwidth in Hz</description>
@@ -42,14 +52,14 @@
         <description>Current sample rate in samples per second.</description>
         <units>sps</units>
       </simple>
-      <simple id="FRONTEND::tuner_status::tuner_type" name="tuner_type" type="string">
-        <description>Example Tuner Types: TX, RX, CHANNELIZER, DDC, RX_DIGITIZER, RX_DIGTIZIER_CHANNELIZER</description>
-      </simple>
       <simple id="FRONTEND::tuner_status::stream_id" name="stream_id" type="string">
         <description>Stream ID associated with tuner/allocation</description>
       </simple>
+      <simple id="FRONTEND::tuner_status::tuner_type" name="tuner_type" type="string">
+        <description>Example Tuner Types: TX, RX, CHANNELIZER, DDC, RX_DIGITIZER, RX_DIGTIZIER_CHANNELIZER</description>
+      </simple>
     </struct>
-    <configurationkind kindtype="configure"/>
+    <configurationkind kindtype="property"/>
   </structsequence>
   <struct id="FRONTEND::listener_allocation" name="frontend_listener_allocation">
     <description>Allocates a listener (subscriber) based off a previous allocation </description>
@@ -109,37 +119,50 @@ False: Does not need control and can just attach to any currently tasked device 
   </struct>
   <structsequence id="connectionTable" mode="readonly">
     <struct id="connectionTable::connection_descriptor" name="connection_descriptor">
-      <simple id="connectionTable::connection_id" name="connection_id" type="string">
-        <kind kindtype="configure"/>
-      </simple>
-      <simple id="connectionTable::stream_id" name="stream_id" type="string">
-        <kind kindtype="configure"/>
-      </simple>
-      <simple id="connectionTable::port_name" name="port_name" type="string">
-        <kind kindtype="configure"/>
-      </simple>
+      <simple id="connectionTable::connection_id" name="connection_id" type="string"/>
+      <simple id="connectionTable::stream_id" name="stream_id" type="string"/>
+      <simple id="connectionTable::port_name" name="port_name" type="string"/>
     </struct>
-    <configurationkind kindtype="configure"/>
+    <configurationkind kindtype="property"/>
   </structsequence>
   <simple id="filePath" mode="readwrite" type="string">
     <description>The path to the file or directory to be read.  Each file will be treated as a separate tuner to allocate.</description>
     <value></value>
-    <kind kindtype="configure"/>
+    <kind kindtype="property"/>
     <action type="external"/>
   </simple>
   <struct id="AdvancedProperties" mode="readwrite">
     <description>Advanced properties for configuring the file reader.</description>
     <simple id="AdvancedProperties::maxOutputRate" name="maxOutputRate" type="double">
       <description>The maximum rate at which to push samples.  This can differ from the sample rate at which the file was taken to slow down streams which have a sample rate greater than the maximum output rate.</description>
-      <value>0.0</value>
+      <value>1e12</value>
       <units>Sps</units>
+    </simple>
+    <simple id="AdvancedProperties::minOutputRate" name="minOutputRate" type="double">
+      <description>The minimum rate at which to push samples.  This can differ from the sample rate at which the file was taken to speed up streams which have a sample rate less than the minimum output rate.</description>
+      <value>1.0</value>
+      <units>Sps</units>
+    </simple>
+    <simple id="AdvancedProperties::newStreamAfterLoop" name="newStreamAfterLoop" type="boolean">
+      <description>When set to false, a file will play continuously as the same stream, only sending an EOS when a deallocation occurs.
+
+When set to true, a file will play each iteration of the loop as a different stream, with an EOS occuring between each iteration. This allows simulation of a hardware device with a discontinuity of data. It also allows testing of a waveform's response to new streams.
+</description>
+      <value>false</value>
     </simple>
     <simple id="AdvancedProperties::packetSize" name="packetSize" type="ulong">
       <description>The number of bytes in each packet used to cache the file data.  The default is about 90% of the default CORBA maximum transfer size.</description>
       <value>1887432</value>
       <units>bytes</units>
     </simple>
-    <configurationkind kindtype="configure"/>
+    <simple id="AdvancedProperties::sampleRateForSRI" name="sampleRateForSRI" type="boolean">
+      <description>When set to true, calculate the SRI xdelta value from the sample rate being used. This allows runtime control of the file's sample rate.
+
+When not set, if the current sample rate is less than specified for the file, then data underflow will occur. If the current sample rate is greater than specified for the file, then data overflow will eventually occur.
+      </description>
+      <value>false</value>
+    </simple>
+    <configurationkind kindtype="property"/>
   </struct>
   <structsequence id="availableFiles" mode="readonly" name="availableFiles">
     <description>Lists all files found at the path specified in the filePath property.</description>
@@ -154,18 +177,18 @@ False: Does not need control and can just attach to any currently tasked device 
         <value>0</value>
       </simple>
     </struct>
-    <configurationkind kindtype="configure"/>
+    <configurationkind kindtype="property"/>
   </structsequence>
   <simple id="updateAvailableFiles" mode="readwrite" name="updateAvailableFiles" type="boolean">
     <description>When set to true, the available_files property will be updated with all available files found at the path specified by the filePath property. Note that this will deallocate from all tuners.</description>
     <value>False</value>
-    <kind kindtype="configure"/>
+    <kind kindtype="property"/>
     <action type="external"/>
   </simple>
   <simple id="loop" mode="readwrite" type="boolean">
     <description>Allow looping for each file.</description>
     <value>false</value>
-    <kind kindtype="configure"/>
+    <kind kindtype="property"/>
     <action type="external"/>
   </simple>
 </properties>

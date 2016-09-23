@@ -16,7 +16,6 @@ PREPARE_LOGGING(MappedFileReader)
  */
 MappedFileReader::MappedFileReader() :
     isPlaying(false),
-    loopingEnabled(false),
     packetSize(1000),
     readIndex(0)
 {
@@ -70,12 +69,8 @@ FilePacket MappedFileReader::getNextPacket(size_t bytes)
         this->readIndex += bytes;
     } else {
         packet.dataSize = bytesLeft;
-
-        if (this->loopingEnabled) {
-            this->readIndex = 0;
-        } else {
-            packet.lastPacket = true;
-        }
+        packet.lastPacket = true;
+        this->readIndex = 0;
     }
 
     return packet;
@@ -109,16 +104,6 @@ bool MappedFileReader::setFilePath(const std::string &newFilePath)
     this->readIndex = 0;
 
     return true;
-}
-
-/*
- * Set the looping flag
- */
-void MappedFileReader::setLoopingEnabled(const bool &enable)
-{
-    LOG_TRACE(MappedFileReader, __PRETTY_FUNCTION__);
-
-    this->loopingEnabled = enable;
 }
 
 /*

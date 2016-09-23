@@ -4,7 +4,9 @@ bin_PROGRAMS = FEI_FileReader
 
 xmldir = $(prefix)/dev/devices/FEI_FileReader/
 dist_xml_DATA = ../FEI_FileReader.scd.xml ../FEI_FileReader.prf.xml ../FEI_FileReader.spd.xml
-ACLOCAL_AMFLAGS = -I$(OSSIEHOME)/share/aclocal/ossie
+ACLOCAL_AMFLAGS = -I m4 -I${OSSIEHOME}/share/aclocal/ossie
+AUTOMAKE_OPTIONS = subdir-objects
+
 
 
 distclean-local:
@@ -31,7 +33,7 @@ distclean-local:
 # you wish to manually control these options.
 include $(srcdir)/Makefile.am.ide
 FEI_FileReader_SOURCES = $(redhawk_SOURCES_auto)
-FEI_FileReader_LDADD = $(PROJECTDEPS_LIBS) $(BOOST_LDFLAGS) $(BOOST_THREAD_LIB) $(BOOST_REGEX_LIB) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB) $(BOOST_IOSTREAMS_LIB) $(INTERFACEDEPS_LIBS) $(redhawk_LDADD_auto) -luuid
-FEI_FileReader_CXXFLAGS = -Wall $(PROJECTDEPS_CFLAGS) $(BOOST_CPPFLAGS) $(INTERFACEDEPS_CFLAGS) $(redhawk_INCLUDES_auto)
+FEI_FileReader_LDADD = $(SOFTPKG_LIBS) $(PROJECTDEPS_LIBS) $(BOOST_LDFLAGS) $(BOOST_THREAD_LIB) $(BOOST_REGEX_LIB) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB) $(BOOST_IOSTREAMS_LIB) $(INTERFACEDEPS_LIBS) $(redhawk_LDADD_auto)
+FEI_FileReader_CXXFLAGS = -Wall $(SOFTPKG_CFLAGS) $(PROJECTDEPS_CFLAGS) $(BOOST_CPPFLAGS) $(INTERFACEDEPS_CFLAGS) $(redhawk_INCLUDES_auto)
 FEI_FileReader_LDFLAGS = -Wall $(redhawk_LDFLAGS_auto)
 

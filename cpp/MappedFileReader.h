@@ -35,11 +35,6 @@ class MappedFileReader
 
         virtual bool setFilePath(const std::string &newFilePath);
 
-        inline const bool& getLoopingEnabled() const
-            { return this->loopingEnabled; }
-
-        void setLoopingEnabled(const bool &enable);
-
         inline const size_t& getPacketSize() const { return this->packetSize; }
         void setPacketSize(const size_t &newPacketSize);
 
@@ -47,7 +42,6 @@ class MappedFileReader
         boost::iostreams::mapped_file file;
         std::string filePath;
         bool isPlaying;
-        bool loopingEnabled;
         size_t packetSize;
         size_t readIndex;
 };

@@ -44,6 +44,8 @@ FEI_FileReader_base::~FEI_FileReader_base()
     RFInfo_in = 0;
     delete DigitalTuner_in;
     DigitalTuner_in = 0;
+    delete dataFile_in;
+    dataFile_in = 0;
     delete dataChar_out;
     dataChar_out = 0;
     delete dataOctet_out;
@@ -74,6 +76,8 @@ void FEI_FileReader_base::construct()
     addPort("RFInfo_in", RFInfo_in);
     DigitalTuner_in = new frontend::InDigitalTunerPort("DigitalTuner_in", this);
     addPort("DigitalTuner_in", DigitalTuner_in);
+    dataFile_in = new bulkio::InFilePort("dataFile_in");
+    addPort("dataFile_in", dataFile_in);
     dataChar_out = new bulkio::OutCharPort("dataChar_out");
     addPort("dataChar_out", dataChar_out);
     dataOctet_out = new bulkio::OutOctetPort("dataOctet_out");
@@ -95,7 +99,7 @@ void FEI_FileReader_base::construct()
     dataDouble_out = new bulkio::OutDoublePort("dataDouble_out");
     addPort("dataDouble_out", dataDouble_out);
 
-    this->addPropertyChangeListener("connectionTable", this, &FEI_FileReader_base::connectionTableChanged);
+    this->addPropertyListener(connectionTable, this, &FEI_FileReader_base::connectionTableChanged);
 
 }
 
@@ -154,7 +158,7 @@ void FEI_FileReader_base::loadProperties()
                 "readwrite",
                 "",
                 "external",
-                "configure");
+                "property");
 
     addProperty(updateAvailableFiles,
                 false,
@@ -163,7 +167,7 @@ void FEI_FileReader_base::loadProperties()
                 "readwrite",
                 "",
                 "external",
-                "configure");
+                "property");
 
     addProperty(loop,
                 false,
@@ -172,7 +176,7 @@ void FEI_FileReader_base::loadProperties()
                 "readwrite",
                 "",
                 "external",
-                "configure");
+                "property");
 
     frontend_listener_allocation = frontend::frontend_listener_allocation_struct();
     frontend_tuner_allocation = frontend::frontend_tuner_allocation_struct();
@@ -183,7 +187,7 @@ void FEI_FileReader_base::loadProperties()
                 "readwrite",
                 "",
                 "external",
-                "configure");
+                "property");
 
     addProperty(connectionTable,
                 "connectionTable",
@@ -191,7 +195,7 @@ void FEI_FileReader_base::loadProperties()
                 "readonly",
                 "",
                 "external",
-                "configure");
+                "property");
 
     addProperty(availableFiles,
                 "availableFiles",
@@ -199,7 +203,7 @@ void FEI_FileReader_base::loadProperties()
                 "readonly",
                 "",
                 "external",
-                "configure");
+                "property");
 
 }
 
@@ -208,12 +212,21 @@ void FEI_FileReader_base::loadProperties()
  */
 void FEI_FileReader_base::setNumChannels(size_t num)
 {
+    this->setNumChannels(num, "RX_DIGITIZER");
+}
+/* This sets the number of entries in the frontend_tuner_status struct sequence property
+ * as well as the tuner_allocation_ids vector. Call this function during initialization
+ */
+
+void FEI_FileReader_base::setNumChannels(size_t num, std::string tuner_type)
+{
     frontend_tuner_status.clear();
     frontend_tuner_status.resize(num);
     tuner_allocation_ids.clear();
     tuner_allocation_ids.resize(num);
     for (std::vector<frontend_tuner_status_struct_struct>::iterator iter=frontend_tuner_status.begin(); iter!=frontend_tuner_status.end(); iter++) {
         iter->enabled = false;
+        iter->tuner_type = tuner_type;
     }
 }
 
