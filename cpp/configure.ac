@@ -10,6 +10,24 @@ AC_CORBA_ORB
 OSSIE_CHECK_OSSIE
 OSSIE_SDRROOT_AS_PREFIX
 
+AC_ARG_WITH(domainname,
+        AS_HELP_STRING([--with-domainname=[domain name]], [Provide a domain name to the generated node, defaults to REDHAWK_DEV]),
+        fei_filereader_node_domain=$withval,
+        fei_filereader_node_domain=REDHAWK_DEV)
+AC_SUBST(DOMAINNAME, $fei_filereader_node_domain)
+
+AC_ARG_WITH(loop,
+        AS_HELP_STRING([--with-loop=[boolean]], [Provide a loop value to the generated node, defaults to false]),
+        fei_filereader_loop=$withval,
+        fei_filereader_loop=false)
+AC_SUBST(LOOP, $fei_filereader_loop)
+
+AC_ARG_WITH(filepath,
+        AS_HELP_STRING([--with-filepath=[path to file or directory]], [Provide a file path to the generated node, defaults to '']),
+        fei_filereader_filepath=$withval,
+        fei_filereader_filepath='')
+AC_SUBST(FILEPATH, $fei_filereader_filepath)
+
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 # Dependencies

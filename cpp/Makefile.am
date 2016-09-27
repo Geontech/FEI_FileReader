@@ -4,6 +4,8 @@ bin_PROGRAMS = FEI_FileReader
 
 xmldir = $(prefix)/dev/devices/FEI_FileReader/
 dist_xml_DATA = ../FEI_FileReader.scd.xml ../FEI_FileReader.prf.xml ../FEI_FileReader.spd.xml
+confdir = $(prefix)/dev/devices/FEI_FileReader/
+dist_conf_SCRIPTS = ../nodeconfig.py
 ACLOCAL_AMFLAGS = -I m4 -I${OSSIEHOME}/share/aclocal/ossie
 AUTOMAKE_OPTIONS = subdir-objects
 
@@ -37,3 +39,5 @@ FEI_FileReader_LDADD = $(SOFTPKG_LIBS) $(PROJECTDEPS_LIBS) $(BOOST_LDFLAGS) $(BO
 FEI_FileReader_CXXFLAGS = -Wall $(SOFTPKG_CFLAGS) $(PROJECTDEPS_CFLAGS) $(BOOST_CPPFLAGS) $(INTERFACEDEPS_CFLAGS) $(redhawk_INCLUDES_auto)
 FEI_FileReader_LDFLAGS = -Wall $(redhawk_LDFLAGS_auto)
 
+create-fei-filereader-node: install-am
+	../nodeconfig.py --inplace --clean --domainname=$(DOMAINNAME) --loop=$(LOOP) --filepath=$(FILEPATH)
