@@ -283,6 +283,7 @@ void FEI_FileReader_i::constructor()
     // Setup based on initial property values
     setAdvancedProperties(this->AdvancedProperties);
     setFilePath(this->filePath);
+    setGroupId(this->group_id);
 
     if (this->updateAvailableFiles) {
         this->updateAvailableFiles = false;
@@ -293,6 +294,8 @@ void FEI_FileReader_i::constructor()
             &FEI_FileReader_i::AdvancedPropertiesChanged);
     addPropertyChangeListener("filePath", this,
             &FEI_FileReader_i::filePathChanged);
+    addPropertyChangeListener("group_id", this,
+            &FEI_FileReader_i::group_idChanged);
     addPropertyChangeListener("updateAvailableFiles", this,
             &FEI_FileReader_i::updateAvailableFilesChanged);
 
@@ -398,6 +401,20 @@ void FEI_FileReader_i::filePathChanged(const std::string *oldValue,
     if (not setFilePath(*newValue)) {
         LOG_WARN(FEI_FileReader_i, "Unable to set file path, reverting");
         this->filePath = *oldValue;
+    }
+}
+
+/*
+ * Set the group ID appropriately
+ */
+void FEI_FileReader_i::group_idChanged(const std::string *oldValue,
+        const std::string *newValue)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    if (not setGroupId(*newValue)) {
+        LOG_WARN(FEI_FileReader_i, "Unable to set group ID, reverting");
+        this->group_id = *oldValue;
     }
 }
 
@@ -595,6 +612,20 @@ bool FEI_FileReader_i::setFilePath(const std::string &newValue)
 
     LOG_DEBUG(FEI_FileReader_i, "Found " <<
             this->fileReaderContainers.size() << " files to read");
+
+    return true;
+}
+
+/*
+ * Set the group_id member, failing if it is invalid
+ */
+bool FEI_FileReader_i::setGroupId(const std::string &newValue)
+{
+    LOG_TRACE(FEI_FileReader_i, __PRETTY_FUNCTION__);
+
+    for (size_t i = 0; i < this->frontend_tuner_status.size(); ++i) {
+        this->frontend_tuner_status[i].group_id = newValue;
+    }
 
     return true;
 }
@@ -925,7 +956,7 @@ void FEI_FileReader_i::updateAvailableFilesVector()
             ++tunerId) {
         this->frontend_tuner_status[tunerId].allocation_id_csv = "";
         this->frontend_tuner_status[tunerId].enabled = false;
-        this->frontend_tuner_status[tunerId].group_id = "";
+        this->frontend_tuner_status[tunerId].group_id = this->group_id;
         this->frontend_tuner_status[tunerId].rf_flow_id = "";
         this->frontend_tuner_status[tunerId].stream_id = "";
         this->frontend_tuner_status[tunerId].tuner_type = "RX_DIGITIZER";

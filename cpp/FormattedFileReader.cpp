@@ -64,7 +64,7 @@ bool FormattedFileReader::setFilePath(const std::string &newFilePath)
 
     // Get the name of the file from the path
     boost::filesystem::path pathObject(newFilePath);
-    const std::string fileName = pathObject.filename();
+    const std::string fileName = pathObject.filename().c_str();
 
     // Attempt to extract metadata from the file name
     std::string fileHandle, cf, sr, bw, type, cx;
