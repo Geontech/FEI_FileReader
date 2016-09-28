@@ -191,4 +191,10 @@ When not set, if the current sample rate is less than specified for the file, th
     <kind kindtype="property"/>
     <action type="external"/>
   </simple>
+  <simple id="group_id" mode="readwrite" type="string">
+    <description>The group_id to be applied to the tuners for pooling purposes.</description>
+    <value></value>
+    <kind kindtype="property"/>
+    <action type="external"/>
+  </simple>
 </properties>

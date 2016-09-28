@@ -178,6 +178,15 @@ void FEI_FileReader_base::loadProperties()
                 "external",
                 "property");
 
+    addProperty(group_id,
+                "",
+                "group_id",
+                "",
+                "readwrite",
+                "",
+                "external",
+                "property");
+
     frontend_listener_allocation = frontend::frontend_listener_allocation_struct();
     frontend_tuner_allocation = frontend::frontend_tuner_allocation_struct();
     addProperty(AdvancedProperties,

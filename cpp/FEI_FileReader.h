@@ -110,6 +110,10 @@ class FEI_FileReader_i : public FEI_FileReader_base
                 const std::string *oldValue,
                 const std::string *newValue);
 
+        void group_idChanged(
+                const std::string *oldValue,
+                const std::string *newValue);
+
         void updateAvailableFilesChanged(
                 const bool *oldValue,
                 const bool *newValue);
@@ -162,6 +166,8 @@ class FEI_FileReader_i : public FEI_FileReader_base
         bool setAdvancedProperties(const AdvancedProperties_struct &newValue);
 
         bool setFilePath(const std::string &newValue);
+
+        bool setGroupId(const std::string &newValue);
 
         void setPacketSizes(size_t packetSize);
 

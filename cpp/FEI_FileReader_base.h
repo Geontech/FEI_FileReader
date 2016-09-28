@@ -46,6 +46,8 @@ class FEI_FileReader_base : public frontend::FrontendTunerDevice<frontend_tuner_
         bool updateAvailableFiles;
         /// Property: loop
         bool loop;
+        /// Property: group_id
+        std::string group_id;
         /// Property: AdvancedProperties
         AdvancedProperties_struct AdvancedProperties;
         /// Property: connectionTable
