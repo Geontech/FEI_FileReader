@@ -189,6 +189,8 @@ class NodeConfig(object):
                 simple.set_value(str(self.props["loop"]))
             elif simple.get_id() in "filePath":
                 simple.set_value(str(self.props["filePath"]))
+            elif simple.get_id() in self.cmdlineProps.keys():
+                simple.set_value(str(self.cmdlineProps[simple.get_id()]))
 
         prf_out = open(prfpath, 'w')
         prf_out.write(parsers.parserconfig.getVersionXML())
