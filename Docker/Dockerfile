@@ -20,7 +20,6 @@ RUN yum install -y \
     source /etc/profile.d/redhawk-sdrroot.sh && \
     git clone git://github.com/GeonTech/FEI_FileReader.git FEI_FileReader && \
     pushd FEI_FileReader && \
-    sed -Ei "s/(LDADD =)/\1\ -luuid/g" cpp/Makefile.am && \
     ./build.sh && \
     ./build.sh install && \
     popd && \
