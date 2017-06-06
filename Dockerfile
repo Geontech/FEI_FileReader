@@ -20,7 +20,6 @@ RUN yum install -y \
     source /etc/profile.d/redhawk-sdrroot.sh && \
     git clone git://github.com/GeonTech/FEI_FileReader.git FEI_FileReader && \
     pushd FEI_FileReader && \
-    sed -Ei "s/(LDADD =)/\1\ -luuid/g" cpp/Makefile.am && \
     ./build.sh && \
     ./build.sh install && \
     popd && \
@@ -42,13 +41,13 @@ RUN yum install -y \
     yum clean all -y
 
 # Node auto-configure
-ADD files/fei_filereader-node-init.sh /root/fei_filereader-node-init.sh
+ADD DockerFiles/fei_filereader-node-init.sh /root/fei_filereader-node-init.sh
 RUN chmod u+x /root/fei_filereader-node-init.sh && \
     echo "/root/fei_filereader-node-init.sh" | tee -a /root/.bashrc
 
 # Supervisord init and exit scripts
-ADD files/supervisord-fei_filereader.conf /etc/supervisor.d/fei_filereader.conf
-ADD files/kill_supervisor.py /usr/bin/kill_supervisor.py
+ADD DockerFiles/supervisord-fei_filereader.conf /etc/supervisor.d/fei_filereader.conf
+ADD DockerFiles/kill_supervisor.py /usr/bin/kill_supervisor.py
 RUN chmod u+x /usr/bin/kill_supervisor.py
 
 CMD [ "supervisord" ]

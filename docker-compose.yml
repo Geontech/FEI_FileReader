@@ -1,4 +1,7 @@
 version: '3'
+volumes:
+    snapshots:
+
 services:
     omni:
         image: "geontech/redhawk-omniserver:2.0.5"
@@ -24,4 +27,4 @@ services:
             - NODENAME=Demo_FEI_FileReader
             - OMNISERVICEIP=omni
         volumes:
-            - ./snapshots:/var/rf_snapshots
+            - snapshots:/var/rf_snapshots
