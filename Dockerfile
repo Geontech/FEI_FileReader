@@ -1,4 +1,4 @@
-FROM geontech/redhawk-runtime:2.0.5
+FROM geontech/redhawk-runtime:2.0.6
 
 LABEL name="Geon's FEI File Reader Device" \
     license="GPLv3" \
