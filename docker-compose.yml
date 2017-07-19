@@ -4,13 +4,13 @@ volumes:
 
 services:
     omni:
-        image: "geontech/redhawk-omniserver:2.0.5"
+        image: "geontech/redhawk-omniserver:2.0.6"
         hostname: omni
         ports:
             - "2809:2809"
             - "11169:11169"
     domain:
-        image: "geontech/redhawk-domain:2.0.5"
+        image: "geontech/redhawk-domain:2.0.6"
         depends_on:
             - omni
         environment:
@@ -19,7 +19,7 @@ services:
     fei_filereader:
         build:
             context: .
-        image: "geontech/redhawk-fei_filereader:2.0.5"
+        image: "geontech/redhawk-fei_filereader:2.0.6"
         depends_on:
             - domain
         environment:
