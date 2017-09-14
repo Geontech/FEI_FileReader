@@ -5,8 +5,9 @@ LABEL name="Geon's FEI File Reader Device" \
     description="Deploys a node with the FEI_FileReader pre-installed" \
     maintainer="Thomas Goodwin <btgoodwin@geontech.com>"
 
-ENV DOMAINNAME      ""
-ENV NODENAME        ""
+ENV DOMAINNAME ""
+ENV NODENAME   ""
+ENV NODEFLAGS  ""
 
 VOLUME /var/rf_snapshots
 
@@ -43,7 +44,7 @@ RUN yum install -y \
 # Node auto-configure
 ADD DockerFiles/fei_filereader-node-init.sh /root/fei_filereader-node-init.sh
 RUN chmod u+x /root/fei_filereader-node-init.sh && \
-    echo "/root/fei_filereader-node-init.sh" | tee -a /root/.bashrc
+    echo "source /root/fei_filereader-node-init.sh" | tee -a /root/.bashrc
 
 # Supervisord init and exit scripts
 ADD DockerFiles/supervisord-fei_filereader.conf /etc/supervisor.d/fei_filereader.conf

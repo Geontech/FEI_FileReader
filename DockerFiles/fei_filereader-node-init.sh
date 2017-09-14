@@ -19,15 +19,14 @@
 #
 set -e
 
-FEI_CONFIG="--filepath /var/rf_snapshots"
-FEI_CONFIG="${FEI_CONFIG} --domainname=${DOMAINNAME}"
-FEI_CONFIG="${FEI_CONFIG} --nodename=${NODENAME}"
+export NODENAME=${NODENAME:-MyFEI_FileReader_$(hostname)}
 
 if ! [ -d $SDRROOT/dev/nodes/${NODENAME} ]; then
     echo Configuring FEI_FileReader Node
-
-    ${SDRROOT}/dev/devices/FEI_FileReader/nodeconfig.py ${FEI_CONFIG}
+    python ${SDRROOT}/dev/devices/FEI_FileReader/nodeconfig.py \
+      --domainname ${DOMAINNAME} \
+      --nodename ${NODENAME} \
+      --filepath /var/rf_snapshots ${NODEFLAGS}
 else
     echo FEI_FileReader Node already configured
 fi
-
