@@ -13,6 +13,12 @@
 
 PREPARE_LOGGING(FormattedFileReader)
 
+#if BOOST_FILESYSTEM_VERSION < 3
+#define BOOST_PATH_STRING(x) (x)
+#else
+#define BOOST_PATH_STRING(x) (x).string()
+#endif
+
 /*
  * Initialize the members.  Will call MetaFileReader()
  */
@@ -64,7 +70,7 @@ bool FormattedFileReader::setFilePath(const std::string &newFilePath)
 
     // Get the name of the file from the path
     boost::filesystem::path pathObject(newFilePath);
-    const std::string fileName = pathObject.filename();
+    const std::string fileName = BOOST_PATH_STRING(pathObject.filename());
 
     // Attempt to extract metadata from the file name
     std::string fileHandle, cf, sr, bw, type, cx;
